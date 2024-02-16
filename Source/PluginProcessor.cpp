@@ -176,6 +176,7 @@ void VST3WrapperAudioProcessor::removePrevioslyHostedPluginIfNeeded(bool unsetEr
         setHostedPluginLoadingError("");
     }
     
+    setIsLoading(false);
     setHostedPluginHasSidechainInput(false);
     setHostedPluginName("");
 }
@@ -293,7 +294,7 @@ bool VST3WrapperAudioProcessor::setHostedPluginLayout()
     
     if (!layoutSuccesfullySet)
     {
-        hostedPluginLoadingError = layoutNotSupportedError;
+        setHostedPluginLoadingError(layoutNotSupportedError);
     }
     
     setHostedPluginHasSidechainInput(layoutSuccesfullySet && targetLayout.inputBuses.size() == sideChainBusIndex + 1);
@@ -343,7 +344,7 @@ bool VST3WrapperAudioProcessor::isMidiEffect() const
 
 double VST3WrapperAudioProcessor::getTailLengthSeconds() const
 {
-    return 0.0;
+    return safelyPerform<double>([](auto& p) { return p->getTailLengthSeconds(); });
 }
 
 int VST3WrapperAudioProcessor::getNumPrograms()
@@ -432,6 +433,14 @@ void VST3WrapperAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
     {
         p->setPlayHead(getPlayHead());
         p->processBlock(buffer, midiMessages);
+    });
+}
+
+void VST3WrapperAudioProcessor::processBlockBypassed(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
+{
+    safelyPerform<void>([this, &buffer, &midiMessages](auto& p)
+    {
+        p->processBlockBypassed(buffer, midiMessages);
     });
 }
 

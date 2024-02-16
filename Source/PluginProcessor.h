@@ -16,19 +16,13 @@
 
 #include <JuceHeader.h>
 
-using AudioGraphIOProcessor = juce::AudioProcessorGraph::AudioGraphIOProcessor;
-using Node = juce::AudioProcessorGraph::Node;
-
-//==============================================================================
-/**
-*/
 class VST3WrapperAudioProcessor  : public juce::AudioProcessor, public juce::ChangeBroadcaster
 {
 public:
     //==============================================================================
     VST3WrapperAudioProcessor();
     ~VST3WrapperAudioProcessor() override;
-
+    
     //==============================================================================
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
     void releaseResources() override;
@@ -41,6 +35,7 @@ public:
    #endif
 
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+    void processBlockBypassed(juce::AudioBuffer<float>&,juce::MidiBuffer&) override;
 
     //==============================================================================
     juce::AudioProcessorEditor* createEditor() override;
@@ -135,7 +130,7 @@ private:
     
     template <typename T>
     /// If the hosted plugin is nullptr, the method will not call provided operation and will return the default value of `T` instead
-    T safelyPerform(std::function<T(const std::unique_ptr<juce::AudioPluginInstance>&)> operation)
+    T safelyPerform(std::function<T(const std::unique_ptr<juce::AudioPluginInstance>&)> operation) const
     {
         const juce::ScopedLock sl (innerMutex);
         

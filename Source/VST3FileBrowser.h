@@ -42,14 +42,6 @@ public:
     
     bool keyPressed(const juce::KeyPress& key) override
     {
-        if (key == juce::KeyPress::returnKey)
-        {
-            if (isVST3FileSelected())
-            {
-                return true;
-            }
-        }
-        
-        return FileBrowserComponent::keyPressed(key);
+        return key == juce::KeyPress::returnKey && isVST3FileSelected() ? true :  FileBrowserComponent::keyPressed(key);
     }
 };
