@@ -63,13 +63,7 @@ void VST3WrapperAudioProcessorEditor::loadPlugin(juce::String filePath)
     // the main audio processor can safely delete its processor
     hostedPluginEditor.reset();
     setLoadingState();
-    
-    threadPool.addJob([this, filePath]()
-    {
-        // Give UI some time to update
-        juce::Thread::sleep(5);
-        audioProcessor.loadPlugin(filePath);
-    });
+    audioProcessor.loadPlugin(filePath);
 }
 
 void VST3WrapperAudioProcessorEditor::closePlugin()
@@ -114,8 +108,7 @@ void VST3WrapperAudioProcessorEditor::setHostedPluginEditorIfNeeded()
 void VST3WrapperAudioProcessorEditor::setLoadingState()
 {
     loadPluginButton.setEnabled(false);
-    statusLabel.setColour( juce::Label::textColourId, juce::Colours::white);
-    statusLabel.setText("Loading...", juce::dontSendNotification);
+    pluginFileBrowser->setEnabled(false);
 }
 
 void VST3WrapperAudioProcessorEditor::processorStateChanged(bool shouldShowPluginLoadingError)
@@ -124,8 +117,9 @@ void VST3WrapperAudioProcessorEditor::processorStateChanged(bool shouldShowPlugi
     auto pluginLoadingError = audioProcessor.getHostedPluginLoadingError();
     
     pluginFileBrowser.get()->setVisible(!isHostedPluginLoaded);
+    pluginFileBrowser->setEnabled(true);
     loadPluginButton.setVisible(!isHostedPluginLoaded);
-    loadPluginButton.setEnabled(true);
+    loadPluginButton.setEnabled(pluginFileBrowser->isVST3FileSelected());
     closePluginButton.setVisible(isHostedPluginLoaded);
     
     if (isHostedPluginLoaded)
@@ -143,7 +137,7 @@ void VST3WrapperAudioProcessorEditor::processorStateChanged(bool shouldShowPlugi
     else
     {
         auto isShowingError = shouldShowPluginLoadingError && !pluginLoadingError.isEmpty();
-        auto labelText = isShowingError ? pluginLoadingError : "No plugin loaded";
+        auto labelText = isShowingError ? pluginLoadingError : noPluginLoadedMessage;
         statusLabel.setColour(juce::Label::textColourId, isShowingError ? juce::Colours::red : juce::Colours::white);
         statusLabel.setText(labelText, juce::dontSendNotification);
     }
@@ -159,6 +153,8 @@ void VST3WrapperAudioProcessorEditor::processorStateChanged(bool shouldShowPlugi
 void VST3WrapperAudioProcessorEditor::selectionChanged()
 {
     loadPluginButton.setEnabled(pluginFileBrowser->isVST3FileSelected());
+    statusLabel.setColour(juce::Label::textColourId, juce::Colours::white);
+    statusLabel.setText(noPluginLoadedMessage, juce::dontSendNotification);
 }
 
 void VST3WrapperAudioProcessorEditor::fileClicked (const juce::File& file, const juce::MouseEvent& e)

@@ -154,6 +154,7 @@ private:
     juce::String hostedPluginLoadingError;
     bool hostedPluginHasSidechainInput;
     juce::String hostedPluginName;
+    juce::String targetLayoutDescription;
     
     void setIsLoading(bool value)
     {
@@ -161,7 +162,7 @@ private:
         isLoading = value;
     }
 
-    void setHostedPluginLoadingError(const juce::String& value)
+    void setHostedPluginLoadingError(const juce::String value)
     {
         const juce::ScopedLock sl(innerMutex);
         hostedPluginLoadingError = value;
@@ -173,11 +174,24 @@ private:
         hostedPluginHasSidechainInput = value;
     }
 
-    void setHostedPluginName(const juce::String& value)
+    void setHostedPluginName(const juce::String value)
     {
         const juce::ScopedLock sl(innerMutex);
         hostedPluginName = value;
     }
+    
+    void setTargetLayoutDescription(const juce::String value)
+    {
+        const juce::ScopedLock sl(innerMutex);
+        targetLayoutDescription = value;
+    }
+    
+    juce::String getTargetLayoutDescription()
+    {
+        const juce::ScopedLock sl(innerMutex);
+        return targetLayoutDescription;
+    }
+    
     //==============================================================================
     
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (VST3WrapperAudioProcessor)

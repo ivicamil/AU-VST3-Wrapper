@@ -105,6 +105,12 @@ void VST3WrapperAudioProcessor::loadPlugin(juce::String pluginPath)
         
         auto successfullyConfigured = true;
         successfullyConfigured &= setHostedPluginLayout();
+        
+#if ! JucePlugin_IsMidiEffect
+        auto pluginName = getHostedPluginName();
+        setHostedPluginName(pluginName + " (" + getTargetLayoutDescription() + ")");
+#endif
+        
         successfullyConfigured &= prepareHostedPluginForPlaying();
         
         if (!successfullyConfigured)
@@ -177,6 +183,7 @@ void VST3WrapperAudioProcessor::removePrevioslyHostedPluginIfNeeded(bool unsetEr
     }
     
     setIsLoading(false);
+    setTargetLayoutDescription("");
     setHostedPluginHasSidechainInput(false);
     setHostedPluginName("");
 }
@@ -265,8 +272,26 @@ void VST3WrapperAudioProcessor::loadPluginFromFile(juce::String pluginPath, std:
 
 bool VST3WrapperAudioProcessor::setHostedPluginLayout()
 {
+    juce::String layoutNotSupportedError = "Selected plugin doesn't support current channel layout";
+    auto hostedPluginTotalNumOfInputChannels = safelyPerform<int>([](auto& p) { return p->getTotalNumInputChannels();});
+    auto hostedPluginTotalNumOfOutputChannels = safelyPerform<int>([](auto& p) { return p->getTotalNumOutputChannels();});
+    
+    auto layoutErrorMassage = [layoutNotSupportedError, hostedPluginTotalNumOfInputChannels, hostedPluginTotalNumOfOutputChannels](int numOfInputChannels, int numOfOutputChannels)
+    {
+        auto layoutMismatchString = juce::String(numOfInputChannels) + "->" + juce::String(numOfOutputChannels) + " vs. " + juce::String(hostedPluginTotalNumOfInputChannels) + "->" + juce::String(hostedPluginTotalNumOfOutputChannels);
+        return layoutNotSupportedError + " (" + layoutMismatchString + ")";
+    };
+    
+    
 #if JucePlugin_IsMidiEffect
-    return true;
+    auto layoutSuccesfullySet = safelyPerform<bool>([this](auto& p) { return p->setBusesLayout(getBusesLayout()); });
+    
+    if (!layoutSuccesfullySet)
+    {
+        setHostedPluginLoadingError(layoutErrorMassage(0, 2));
+    }
+    
+    return layoutSuccesfullySet;
 #else
     
 #if JucePlugin_IsSynth
@@ -274,8 +299,6 @@ bool VST3WrapperAudioProcessor::setHostedPluginLayout()
 #else
     auto sideChainBusIndex = 1;
 #endif
-    
-    juce::String layoutNotSupportedError = "Selected plugin doesn't support current channel layout";
     
     auto currentLayout = getBusesLayout();
     auto hostedPluginDefaultLayout = safelyPerform<juce::AudioProcessor::BusesLayout>([](auto& p) { return p->getBusesLayout(); });
@@ -294,11 +317,25 @@ bool VST3WrapperAudioProcessor::setHostedPluginLayout()
         targetLayout.outputBuses.add(i < currentLayout.outputBuses.size() ? currentLayout.outputBuses[i] : juce::AudioChannelSet::disabled());
     }
     
+    int totalNumInputChannels = 0;
+    for (int i = 0; i < targetLayout.inputBuses.size(); ++i)
+    {
+        totalNumInputChannels += targetLayout.inputBuses[i].size();
+    }
+
+    int totalNumOutputChannels = 0;
+    for (int i = 0; i < targetLayout.outputBuses.size(); ++i)
+    {
+        totalNumOutputChannels += targetLayout.outputBuses[i].size();
+    }
+    
+    setTargetLayoutDescription(juce::String(totalNumInputChannels) + "->" + juce::String(totalNumOutputChannels));
+    
     auto layoutSuccesfullySet = safelyPerform<bool>([targetLayout](auto& p) { return p->setBusesLayout(targetLayout); });
     
     if (!layoutSuccesfullySet)
     {
-        setHostedPluginLoadingError(layoutNotSupportedError);
+        setHostedPluginLoadingError(layoutErrorMassage(totalNumInputChannels, totalNumOutputChannels));
     }
     
     setHostedPluginHasSidechainInput(layoutSuccesfullySet && targetLayout.inputBuses.size() == sideChainBusIndex + 1);
@@ -406,12 +443,12 @@ void VST3WrapperAudioProcessor::releaseResources()
 
 bool VST3WrapperAudioProcessor::canAddBus(bool isInput) const
 {
-    return false;
+    return true;
 }
 
 bool VST3WrapperAudioProcessor::canRemoveBus(bool isInput) const
 {
-    return false;
+    return true;
 }
 
 bool VST3WrapperAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -423,7 +460,7 @@ bool VST3WrapperAudioProcessor::isBusesLayoutSupported (const BusesLayout& layou
     // with any layout it supports, and then we check if the hosted plugin supports
     // current layout after it gets loaded
     
-    // Returning true seems to work, but Logic doesn't always show all the possible layout options.
+    // Logic doesn't always show all the possible layout options supported in this method.
     // If some of the layout options are missing in Logic, try increasing plugin version
     // or changing manufacturer code in the Projucer project, and rebuild the plugin after that
     return true;
