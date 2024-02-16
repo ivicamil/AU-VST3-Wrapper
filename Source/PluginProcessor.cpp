@@ -272,6 +272,15 @@ void VST3WrapperAudioProcessor::loadPluginFromFile(juce::String pluginPath, std:
 
 bool VST3WrapperAudioProcessor::setHostedPluginLayout()
 {
+#if JucePlugin_IsMidiEffect
+    return true;
+#else
+    
+#if JucePlugin_IsSynth
+    auto sideChainBusIndex = 0;
+#else
+    auto sideChainBusIndex = 1;
+#endif
     juce::String layoutNotSupportedError = "Selected plugin doesn't support current channel layout";
     auto hostedPluginTotalNumOfInputChannels = safelyPerform<int>([](auto& p) { return p->getTotalNumInputChannels();});
     auto hostedPluginTotalNumOfOutputChannels = safelyPerform<int>([](auto& p) { return p->getTotalNumOutputChannels();});
@@ -281,24 +290,6 @@ bool VST3WrapperAudioProcessor::setHostedPluginLayout()
         auto layoutMismatchString = juce::String(numOfInputChannels) + "->" + juce::String(numOfOutputChannels) + " vs. " + juce::String(hostedPluginTotalNumOfInputChannels) + "->" + juce::String(hostedPluginTotalNumOfOutputChannels);
         return layoutNotSupportedError + " (" + layoutMismatchString + ")";
     };
-    
-    
-#if JucePlugin_IsMidiEffect
-    auto layoutSuccesfullySet = safelyPerform<bool>([this](auto& p) { return p->setBusesLayout(getBusesLayout()); });
-    
-    if (!layoutSuccesfullySet)
-    {
-        setHostedPluginLoadingError(layoutErrorMassage(0, 2));
-    }
-    
-    return layoutSuccesfullySet;
-#else
-    
-#if JucePlugin_IsSynth
-    auto sideChainBusIndex = 0;
-#else
-    auto sideChainBusIndex = 1;
-#endif
     
     auto currentLayout = getBusesLayout();
     auto hostedPluginDefaultLayout = safelyPerform<juce::AudioProcessor::BusesLayout>([](auto& p) { return p->getBusesLayout(); });
