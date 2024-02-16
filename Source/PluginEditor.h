@@ -49,6 +49,7 @@ private:
     // This reference is provided as a quick way for your editor to
     // access the processor object that created it.
     VST3WrapperAudioProcessor& audioProcessor;
+    juce::ThreadPool threadPool{1};
     std::unique_ptr<juce::AudioProcessorEditor> hostedPluginEditor;
     void loadPlugin(juce::String filePath);
     void closePlugin();
@@ -58,7 +59,8 @@ private:
     juce::TextButton loadPluginButton;
     juce::TextButton closePluginButton;
     juce::Label statusLabel;
-    void updateUI(bool shouldShowPluginLoadingError);
+    void setLoadingState();
+    void processorStateChanged(bool shouldShowPluginLoadingError);
     void drawSidechainArrow(juce::Graphics& g);
     
     static constexpr int defaultEditorWidth = 650;

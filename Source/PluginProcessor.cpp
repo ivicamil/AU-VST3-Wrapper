@@ -86,10 +86,10 @@ void VST3WrapperAudioProcessor::loadPlugin(juce::String pluginPath)
         return;
     }
     
-    removePrevioslyHostedPluginIfNeeded(true);
-    
     setIsLoading(true);
     
+    removePrevioslyHostedPluginIfNeeded(true);
+        
     loadPluginFromFile(pluginPath, [this](std::unique_ptr<juce::AudioPluginInstance> pluginInstance)
     {
         if (pluginInstance == nullptr)
@@ -183,79 +183,83 @@ void VST3WrapperAudioProcessor::removePrevioslyHostedPluginIfNeeded(bool unsetEr
 
 void VST3WrapperAudioProcessor::loadPluginFromFile(juce::String pluginPath, std::function<void(std::unique_ptr<juce::AudioPluginInstance> pluginInstance)> vst3FileLoadingCompleted)
 {
-    juce::OwnedArray<juce::PluginDescription> descs;
-    juce::VST3PluginFormat vst3Format;
-    vst3Format.findAllTypesForFile(descs, pluginPath);
+    // Some plugins crash if they are scanned from a background thread
+    juce::MessageManager::callAsync([this, pluginPath, vst3FileLoadingCompleted]() {
         
-    if (descs.isEmpty())
-    {
-        setHostedPluginLoadingError("No valid VST3 found in selected file");
-        vst3FileLoadingCompleted(nullptr);
-        return;
-    }
-    
-    auto descIndex = -1;
-    
-    auto validDescription = [](const juce::PluginDescription* d)
-    {
-#if JucePlugin_IsMidiEffect || JucePlugin_IsSynth
-        return d->isInstrument;
-#else
-        return !d->isInstrument;
-#endif
-    };
-    
-    for (int i = 0; i < descs.size(); ++i)
-    {
-        if (validDescription(descs[i]))
+        juce::OwnedArray<juce::PluginDescription> descs;
+        juce::VST3PluginFormat vst3Format;
+        vst3Format.findAllTypesForFile(descs, pluginPath);
+            
+        if (descs.isEmpty())
         {
-            descIndex = i;
-            break;
-        }
-    }
-    
-    if (descIndex == -1)
-    {
-#if JucePlugin_IsMidiEffect || JucePlugin_IsSynth
-        setHostedPluginLoadingError("Selected VST3 is not an instrument");
-#else
-        setHostedPluginLoadingError("Selected VST3 is not an effect");
-#endif
-        vst3FileLoadingCompleted(nullptr);
-        return;
-    }
-    
-    auto pluginDescription = *descs[descIndex];
-    juce::String errorMessage;
-    
-    formatManager.createPluginInstanceAsync(pluginDescription, getSampleRate(), getBlockSize(),  
-        [this, vst3FileLoadingCompleted](std::unique_ptr<juce::AudioPluginInstance> pluginInstance, const juce::String& errorMessage)
-        {
-        
-        if (pluginInstance == nullptr)
-        {
-            setHostedPluginLoadingError(errorMessage.isEmpty() ? unexpectedPluginLoadingError : errorMessage);
+            setHostedPluginLoadingError("No valid VST3 found in selected file");
             vst3FileLoadingCompleted(nullptr);
             return;
         }
         
-    #if JucePlugin_IsMidiEffect
-        if (!pluginInstance->acceptsMidi())
-        {
-            setHostedPluginLoadingError("Selected VST3 Plugin Does Not Accept MIDI");
-            vst3FileLoadingCompleted(nullptr);
-            return;
-        }
+        auto descIndex = -1;
         
-        if (!pluginInstance->producesMidi())
+        auto validDescription = [](const juce::PluginDescription* d)
         {
-            setHostedPluginLoadingError("Selected VST3 Plugin Does Not Produce MIDI");
-            vst3FileLoadingCompleted(nullptr);
-            return;
-        }
+    #if JucePlugin_IsMidiEffect || JucePlugin_IsSynth
+            return d->isInstrument;
+    #else
+            return !d->isInstrument;
     #endif
+        };
         
-        vst3FileLoadingCompleted(std::move(pluginInstance));
+        for (int i = 0; i < descs.size(); ++i)
+        {
+            if (validDescription(descs[i]))
+            {
+                descIndex = i;
+                break;
+            }
+        }
+        
+        if (descIndex == -1)
+        {
+    #if JucePlugin_IsMidiEffect || JucePlugin_IsSynth
+            setHostedPluginLoadingError("Selected VST3 is not an instrument");
+    #else
+            setHostedPluginLoadingError("Selected VST3 is not an effect");
+    #endif
+            vst3FileLoadingCompleted(nullptr);
+            return;
+        }
+        
+        auto pluginDescription = *descs[descIndex];
+        juce::String errorMessage;
+        
+        formatManager.createPluginInstanceAsync(pluginDescription, getSampleRate(), getBlockSize(),
+            [this, vst3FileLoadingCompleted](std::unique_ptr<juce::AudioPluginInstance> pluginInstance, const juce::String& errorMessage)
+            {
+            
+            if (pluginInstance == nullptr)
+            {
+                setHostedPluginLoadingError(errorMessage.isEmpty() ? unexpectedPluginLoadingError : errorMessage);
+                vst3FileLoadingCompleted(nullptr);
+                return;
+            }
+            
+        #if JucePlugin_IsMidiEffect
+            if (!pluginInstance->acceptsMidi())
+            {
+                setHostedPluginLoadingError("Selected VST3 Plugin Does Not Accept MIDI");
+                vst3FileLoadingCompleted(nullptr);
+                return;
+            }
+            
+            if (!pluginInstance->producesMidi())
+            {
+                setHostedPluginLoadingError("Selected VST3 Plugin Does Not Produce MIDI");
+                vst3FileLoadingCompleted(nullptr);
+                return;
+            }
+        #endif
+            
+            vst3FileLoadingCompleted(std::move(pluginInstance));
+        });
     });
 }
 

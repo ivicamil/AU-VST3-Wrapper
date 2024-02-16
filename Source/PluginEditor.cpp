@@ -47,7 +47,7 @@ VST3WrapperAudioProcessorEditor::VST3WrapperAudioProcessorEditor (VST3WrapperAud
 
     setHostedPluginEditorIfNeeded();
     
-    updateUI(false);
+    processorStateChanged(false);
 }
 
 VST3WrapperAudioProcessorEditor::~VST3WrapperAudioProcessorEditor()
@@ -62,8 +62,14 @@ void VST3WrapperAudioProcessorEditor::loadPlugin(juce::String filePath)
     // If present, the old hosted plugin editor is now deleted and set to nullptr so that
     // the main audio processor can safely delete its processor
     hostedPluginEditor.reset();
-    audioProcessor.loadPlugin(filePath);
-    updateUI(false);
+    setLoadingState();
+    
+    threadPool.addJob([this, filePath]()
+    {
+        // Give UI some time to update
+        juce::Thread::sleep(5);
+        audioProcessor.loadPlugin(filePath);
+    });
 }
 
 void VST3WrapperAudioProcessorEditor::closePlugin()
@@ -72,13 +78,13 @@ void VST3WrapperAudioProcessorEditor::closePlugin()
     // the main audio processor can safely delete its processor
     hostedPluginEditor.reset();
     audioProcessor.closeHostedPlugin();
-    updateUI(false);
+    processorStateChanged(false);
 }
 
 void VST3WrapperAudioProcessorEditor::changeListenerCallback (juce::ChangeBroadcaster* source)
 {
     setHostedPluginEditorIfNeeded();
-    updateUI(true);
+    processorStateChanged(true);
 }
 
 void VST3WrapperAudioProcessorEditor::setHostedPluginEditorIfNeeded()
@@ -105,14 +111,21 @@ void VST3WrapperAudioProcessorEditor::setHostedPluginEditorIfNeeded()
     }
 }
 
-void VST3WrapperAudioProcessorEditor::updateUI(bool shouldShowPluginLoadingError)
+void VST3WrapperAudioProcessorEditor::setLoadingState()
+{
+    loadPluginButton.setEnabled(false);
+    statusLabel.setColour( juce::Label::textColourId, juce::Colours::white);
+    statusLabel.setText("Loading...", juce::dontSendNotification);
+}
+
+void VST3WrapperAudioProcessorEditor::processorStateChanged(bool shouldShowPluginLoadingError)
 {
     auto isHostedPluginLoaded = audioProcessor.isHostedPluginLoaded();
     auto pluginLoadingError = audioProcessor.getHostedPluginLoadingError();
     
     pluginFileBrowser.get()->setVisible(!isHostedPluginLoaded);
     loadPluginButton.setVisible(!isHostedPluginLoaded);
-    loadPluginButton.setEnabled(pluginFileBrowser->isVST3FileSelected() && !audioProcessor.isCurrentlyLoading());
+    loadPluginButton.setEnabled(true);
     closePluginButton.setVisible(isHostedPluginLoaded);
     
     if (isHostedPluginLoaded)
@@ -127,7 +140,7 @@ void VST3WrapperAudioProcessorEditor::updateUI(bool shouldShowPluginLoadingError
         statusLabel.setColour(juce::Label::textColourId, juce::Colours::white);
         statusLabel.setText(labelText, juce::dontSendNotification);
     }
-    else 
+    else
     {
         auto isShowingError = shouldShowPluginLoadingError && !pluginLoadingError.isEmpty();
         auto labelText = isShowingError ? pluginLoadingError : "No plugin loaded";
@@ -145,7 +158,7 @@ void VST3WrapperAudioProcessorEditor::updateUI(bool shouldShowPluginLoadingError
 
 void VST3WrapperAudioProcessorEditor::selectionChanged()
 {
-    updateUI(false);
+    loadPluginButton.setEnabled(pluginFileBrowser->isVST3FileSelected());
 }
 
 void VST3WrapperAudioProcessorEditor::fileClicked (const juce::File& file, const juce::MouseEvent& e)

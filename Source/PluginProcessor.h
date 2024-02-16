@@ -75,6 +75,7 @@ public:
      *        A change broadcaster message is send on the main thread when the method finishes.
      *        If loading is succesful, `isHostedPluginLoaded()` will return true.
      *        If loading fails, `isHostedPluginLoaded()` will return false and `getHostedPluginLoadingError()` will contain the reason of the failure.
+     *        VST3 instance is created asynchronously, but VST3 file scanning happens on the main thread as some plugins crash when scanned from a background thread. 
      *
      * @warning The method will delete previously hosted plugin, if any.
      *          Make sure that the editor of previously hosted plugin is deleted before calling this method.
