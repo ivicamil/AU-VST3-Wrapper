@@ -338,8 +338,17 @@ bool VST3WrapperAudioProcessor::setHostedPluginLayout()
 bool VST3WrapperAudioProcessor::prepareHostedPluginForPlaying()
 {
     setLatencySamples(safelyPerform<int>([](auto& p) { return p->getLatencySamples(); }));
-    safelyPerform<void>([this](auto& p) { p->setRateAndBufferSizeDetails(getSampleRate(), getBlockSize()); });
-    safelyPerform<void>([this](auto& p) { p->prepareToPlay(getSampleRate(), getBlockSize()); });
+    
+    safelyPerform<void>([this](auto& p)
+    {
+#if JucePlugin_IsMidiEffect
+        p->setPlayConfigDetails(0, 2, getSampleRate(), getBlockSize());
+#else
+        p->setRateAndBufferSizeDetails(getSampleRate(), getBlockSize());
+#endif
+        p->prepareToPlay(getSampleRate(), getBlockSize());
+    });
+    
     return true;
 }
 
@@ -407,9 +416,13 @@ int preparedCount;
 
 void VST3WrapperAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
-    safelyPerform<void>([sampleRate, samplesPerBlock](auto& p)
+    safelyPerform<void>([this, sampleRate, samplesPerBlock](auto& p)
     {
+#if JucePlugin_IsMidiEffect
+        p->setPlayConfigDetails(0, 2, sampleRate, samplesPerBlock);
+#else
         p->setRateAndBufferSizeDetails(sampleRate, samplesPerBlock);
+#endif
         p->prepareToPlay(sampleRate, samplesPerBlock);
     });
 }

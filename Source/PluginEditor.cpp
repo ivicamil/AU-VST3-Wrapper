@@ -63,7 +63,13 @@ void VST3WrapperAudioProcessorEditor::loadPlugin(juce::String filePath)
     // the main audio processor can safely delete its processor
     hostedPluginEditor.reset();
     setLoadingState();
-    audioProcessor.loadPlugin(filePath);
+    
+    threadPool.addJob([this, filePath]()
+    {
+        // Give UI some time to update
+        juce::Thread::sleep(5);
+        audioProcessor.loadPlugin(filePath);
+    });
 }
 
 void VST3WrapperAudioProcessorEditor::closePlugin()
@@ -109,6 +115,8 @@ void VST3WrapperAudioProcessorEditor::setLoadingState()
 {
     loadPluginButton.setEnabled(false);
     pluginFileBrowser->setEnabled(false);
+    statusLabel.setColour(juce::Label::textColourId, juce::Colours::white);
+    statusLabel.setText("Loading...", juce::dontSendNotification);
 }
 
 void VST3WrapperAudioProcessorEditor::processorStateChanged(bool shouldShowPluginLoadingError)
