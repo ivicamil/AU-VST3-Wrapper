@@ -56,7 +56,6 @@ VST3WrapperAudioProcessor::VST3WrapperAudioProcessor()
                   )
 #endif
 {
-    formatManager.addFormat(new juce::VST3PluginFormat());
 }
 
 VST3WrapperAudioProcessor::~VST3WrapperAudioProcessor()
@@ -87,7 +86,7 @@ void VST3WrapperAudioProcessor::loadPlugin(const juce::String& pluginPath)
 
     setIsLoading(true);
             
-    loadPluginFromFile(pluginPath, [&](auto pluginInstance)
+    auto callback = [&](auto pluginInstance)
     {
         if (pluginInstance == nullptr)
         {
@@ -119,7 +118,9 @@ void VST3WrapperAudioProcessor::loadPlugin(const juce::String& pluginPath)
         setIsLoading(false);
         
         juce::MessageManager::callAsync([&]() { sendChangeMessage(); });
-    });
+    };
+    
+    loadPluginFromFile(pluginPath, std::move(callback));
 }
 
 bool  VST3WrapperAudioProcessor::isCurrentlyLoading()
@@ -184,7 +185,6 @@ void VST3WrapperAudioProcessor::loadPluginFromFile(const juce::String& pluginPat
     juce::MessageManager::callAsync([=]() {
         
         juce::OwnedArray<juce::PluginDescription> descs;
-        juce::VST3PluginFormat vst3Format;
         vst3Format.findAllTypesForFile(descs, pluginPath);
             
         if (descs.isEmpty())
@@ -228,9 +228,9 @@ void VST3WrapperAudioProcessor::loadPluginFromFile(const juce::String& pluginPat
         const auto pluginDescription = *descs[descIndex];
         juce::String errorMessage;
         
-        formatManager.createPluginInstanceAsync(pluginDescription, getSampleRate(), getBlockSize(),
-            [=](auto pluginInstance, const auto& errorMessage)
-            {
+        
+        auto callback = [=](auto pluginInstance, const auto& errorMessage)
+        {
             
             if (pluginInstance == nullptr)
             {
@@ -256,7 +256,9 @@ void VST3WrapperAudioProcessor::loadPluginFromFile(const juce::String& pluginPat
         #endif
             
             vst3FileLoadingCompleted(std::move(pluginInstance));
-        });
+        };
+        
+        vst3Format.createPluginInstanceAsync(pluginDescription, getSampleRate(), getBlockSize(), std::move(callback));
     });
 }
 

@@ -112,8 +112,7 @@ public:
 private:
     juce::CriticalSection innerMutex;
     //==============================================================================
-    juce::AudioPluginFormatManager formatManager;
-    juce::KnownPluginList pluginList;
+    juce::VST3PluginFormat vst3Format;
     //==============================================================================
     std::unique_ptr<juce::AudioPluginInstance> hostedPluginInstance;
     
