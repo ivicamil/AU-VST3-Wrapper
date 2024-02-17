@@ -1,4 +1,8 @@
-# Motivation
+# AU-VST3-Wrapper 
+
+AU-VST3-Wrapper is an AUv2 plugin for Logic Pro DAW, that can wrap and host a single VST3 plugin.
+
+## Motivation
 
 We sometimes want to use MIDI output of a synth as MIDI input to another synth. That way we can, for example, generate MIDI with Arturia Pigments' fantastic sequencer and  send its output to various instruments to achieve musically interesting results. The way this is done in most DAWs is by routing MIDI output of a VST3 instrument to another track.
 
@@ -26,14 +30,14 @@ A better way is to host a VST3 inside an audio unit in a MIDI FX slot in Logic. 
 
 This repository also contains instrument and audio FX versions of the wrapper, but hosting VST3s as instruments or effects in Logic is not that useful. I do that only in rare cases when an Audio Unit version of an instrument or effect has some bug not present in the VST3 version.
 
-# Disclamer
+## Disclamer
 
 I am neither C++ nor audio plugin developer. This is my first ever C++ project and the product is intended for personal use. Don't use this code uncritically. It's probably far from the best practices. And the plugin it's not thoroughly tested. But the worst thing that can happen is that it doesn't work properly in some scenarios or that it crashes here and there. If you use Logic on Apple Silicon, plugin crash won't crash the Logic itself. So it's safe to try it. If it works for you great! If not, you can try to fix it or improve it. :)
 
-# Building the Projects
+## Building the Projects
 
 The repo contains 3 Projucer projects, one for MIDI FX, one for Instrument and one for Audio FX AU. Those projects share the source code, but have to be built separately. To build each project, download [JUCE framework](https://juce.com) (version 7) and [Xcode](https://developer.apple.com/xcode/) (15 or higher). Generate Xcode project from each Projucer project (as explained [here](https://docs.juce.com/master/tutorial_new_projucer_project.html)) and build it. The resulting AU plugin should be automatically installed to an appropriate location where Logic can find it. You can also export an archive from Xcode project and install it manually. If you want to distribute plugins to other computers, you must sign them with Apple developer certificate and notarize it.
 
-# Channel Layout Support
+## Channel Layout Support
 
 The instrument and effect wrappers theoretically support every possible channel layout that Logic supports, including surround and multi-output for instruments, surround and multi-mono for effects and sidechain for both. However, it can be sometimes tricky to make multi-output VST3 instruments load and work properly. I did eventually make multi-output Kontakt 7 work, but I needed to create the appropriate channels in advance in Kontakt standalone and save that layout as the default before the multi-output instance of the wrapper could open it.
