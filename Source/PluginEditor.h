@@ -46,6 +46,24 @@ public:
     void componentMovedOrResized (Component& component, bool wasMoved, bool wasResized) override;
 
 private:
+    class SemiTransparentComponent : public juce::Component
+    {
+    public:
+        
+        SemiTransparentComponent()
+        {
+        }
+        
+        ~SemiTransparentComponent()
+        {
+        }
+
+        void paint(juce::Graphics& g) override
+        {
+            g.fillAll(juce::Colours::white.withAlpha(0.1f));
+        }
+    };
+    
     // This reference is provided as a quick way for your editor to
     // access the processor object that created it.
     VST3WrapperAudioProcessor& audioProcessor;
@@ -56,6 +74,7 @@ private:
     void setHostedPluginEditorIfNeeded();
     
     std::unique_ptr<VST3FileBrowserComponent> pluginFileBrowser;
+    SemiTransparentComponent pluginFileBrowserCover;
     juce::TextButton loadPluginButton;
     juce::TextButton closePluginButton;
     juce::Label statusLabel;

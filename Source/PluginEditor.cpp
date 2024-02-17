@@ -32,6 +32,9 @@ VST3WrapperAudioProcessorEditor::VST3WrapperAudioProcessorEditor (VST3WrapperAud
     
     addAndMakeVisible(pluginFileBrowser.get());
     pluginFileBrowser->addListener(this);
+    // setEnabled(false) doesn't work on FileBrowserComponent,
+    // so we use a cover view to disable it when needed
+    addAndMakeVisible(pluginFileBrowserCover);
     
     loadPluginButton.setButtonText("Load Plugin");
     loadPluginButton.addListener(this);
@@ -108,7 +111,7 @@ void VST3WrapperAudioProcessorEditor::setHostedPluginEditorIfNeeded()
 void VST3WrapperAudioProcessorEditor::setLoadingState()
 {
     loadPluginButton.setEnabled(false);
-    pluginFileBrowser->setEnabled(false);
+    pluginFileBrowserCover.setVisible(true);
     statusLabel.setColour(juce::Label::textColourId, juce::Colours::white);
     statusLabel.setText("Loading...", juce::dontSendNotification);
 }
@@ -119,7 +122,7 @@ void VST3WrapperAudioProcessorEditor::processorStateChanged(const bool shouldSho
     const auto pluginLoadingError = audioProcessor.getHostedPluginLoadingError();
     
     pluginFileBrowser.get()->setVisible(!isHostedPluginLoaded);
-    pluginFileBrowser->setEnabled(true);
+    pluginFileBrowserCover.setVisible(false);
     loadPluginButton.setVisible(!isHostedPluginLoaded);
     loadPluginButton.setEnabled(pluginFileBrowser->isVST3FileSelected());
     closePluginButton.setVisible(isHostedPluginLoaded);
@@ -239,6 +242,7 @@ void VST3WrapperAudioProcessorEditor::resized()
     }
    
     pluginFileBrowser->setBounds(0, 0, getEditorWidth(), browserHeight);
+    pluginFileBrowserCover.setBounds(0, 0, getEditorWidth(), browserHeight);
     loadPluginButton.setBounds(margin, getButtonOriginY(), getBounds().getWidth() - 2 * margin, buttonHeight);
     closePluginButton.setBounds(margin, getButtonOriginY(), getBounds().getWidth() - 2 * margin, buttonHeight);
     statusLabel.setBounds(margin, getLabelriginY(), getBounds().getWidth() - 2 * margin, labelHeight);
