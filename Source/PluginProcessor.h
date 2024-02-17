@@ -72,10 +72,10 @@ public:
     
     /**
      * @brief This method tries to load a VST3 plugin instance from file at provided path.
-     *        A change broadcaster message is send on the main thread when the method finishes.
-     *        If loading is succesful, `isHostedPluginLoaded()` will return true.
-     *        If loading fails, `isHostedPluginLoaded()` will return false and `getHostedPluginLoadingError()` will contain the reason of the failure.
-     *        VST3 instance is created asynchronously, but VST3 file scanning happens on the main thread as some plugins crash when scanned from a background thread. 
+     *        A change broadcaster message is sent on the main thread when the method finishes.
+     *        If loading is successful, `isHostedPluginLoaded()` will return `true`.
+     *        If loading fails, `isHostedPluginLoaded()` will return `false` and `getHostedPluginLoadingError()` will contain the loading error.
+     *        VST3 instance is created asynchronously, but VST3 file scanning is done on the main thread as some plugins crash when scanned from a background thread. 
      *
      * @warning The method will delete previously hosted plugin, if any.
      *          Make sure that the editor of previously hosted plugin is deleted before calling this method.
@@ -85,27 +85,27 @@ public:
     void loadPlugin(const juce::String& pluginPath);
     
     /**
-     * @brief This method closes currently loaded plugin and resets processor's state.
+     * @brief This method closes currently loaded plugin (if there is one) and resets processor's state.
      *
      * @warning Make sure that the editor of the currently loaded plugin is deleted before calling this method.
      */
     void closeHostedPlugin();
     
-    /// Return an error description if `loadPlugin` returns `false`
+    /// Returns an error description if `loadPlugin` fails, or an empty string otherwise.
     juce::String getHostedPluginLoadingError();
     
-    /// Return `true` if the hosted plugin has a  sidechain bus which is either the first input bus for VST3 instruments or the second input bus for VST3 effects
+    /// Returns `true` if the hosted plugin has a sidechain bus, which is either the first input bus of a VST3 instruments or the second input bus of a VST3 effect.
     bool hostedPluginSupportsSidechaining();
     
-    /// Returns  "Manufacturer - Name" string for the hosted plugin, or an empty string if `isHostedPluginLoaded` is `false`
+    /// Returns  "Manufacturer - Name (Channel Layout Description)" string of the hosted plugin, or an empty string if no plugin is currently loaded.
     juce::String getHostedPluginName();
+
     /**
      * @brief Calls `createEditorIfNeeded` on the hosted plugin instance and returns the result.
      *
-     * @warning The caller must take ownership of the returned editor and delete it before calling `loadPluginInstance`
+     * @warning The caller must take ownership of the returned editor and delete it before calling `loadPlugin` or `closeHostedPlugin`.
      *
-     * @param pluginPath The path of a VST3 file
-     * @return A pointer to `AudioProcessorEditor` of the hosted plugin or `nullptr` if `isHostedPluginLoaded` is `false` or if the loaded plugin doesn't have an editor
+     * @return A pointer to `AudioProcessorEditor` of the hosted plugin or `nullptr` if no plugin is loaded or if the loaded plugin doesn't have an editor.
      */
     juce::AudioProcessorEditor* createHostedPluginEditorIfNeeded();
 
@@ -129,7 +129,7 @@ private:
     }
     
     template <typename T>
-    /// If the hosted plugin is nullptr, the method will not call provided operation and will return the default value of `T` instead
+    /// If the hosted plugin is nullptr, the method will not call provided operation and will return the default value of `T`.
     T safelyPerform(std::function<T(const std::unique_ptr<juce::AudioPluginInstance>&)> operation) const
     {
         const juce::ScopedLock sl (innerMutex);
@@ -146,8 +146,8 @@ private:
     void loadPluginFromFile(const juce::String& pluginPath, PluginLoadingCallback callback);
     bool setHostedPluginLayout();
     bool prepareHostedPluginForPlaying();
-    static inline const juce::String unexpectedPluginLoadingError = "Unexpected error while loading the plugin";
     //==============================================================================
+    static inline const juce::String unexpectedPluginLoadingError = "An unexpected error has occurred while loading the plugin";
     bool isLoading;
     juce::String hostedPluginLoadingError;
     bool hostedPluginHasSidechainInput;
