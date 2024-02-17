@@ -89,17 +89,11 @@ void VST3WrapperAudioProcessorEditor::changeListenerCallback (juce::ChangeBroadc
 
 void VST3WrapperAudioProcessorEditor::setHostedPluginEditorIfNeeded()
 {
-    if (!audioProcessor.isHostedPluginLoaded())
-    {
-        return;
-    }
+    if (!audioProcessor.isHostedPluginLoaded()) { return; }
     
     auto newEditor = audioProcessor.createHostedPluginEditorIfNeeded();
     
-    if (newEditor == nullptr)
-    {
-        return;
-    }
+    if (newEditor == nullptr) { return; }
     
     // Just in case setHostedPluginEditorIfNeeded is called more than once
     // during the lifetime of the hosted plugin
@@ -134,10 +128,7 @@ void VST3WrapperAudioProcessorEditor::processorStateChanged(bool shouldShowPlugi
     {
         juce::String labelText = audioProcessor.getHostedPluginName();
         
-        if (hostedPluginEditor == nullptr)
-        {
-            labelText += " (no editor)";
-        }
+        if (hostedPluginEditor == nullptr) { labelText += " (no editor)"; }
         
         statusLabel.setColour(juce::Label::textColourId, juce::Colours::white);
         statusLabel.setText(labelText, juce::dontSendNotification);

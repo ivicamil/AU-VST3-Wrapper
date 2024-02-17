@@ -135,17 +135,16 @@ private:
     {
         const juce::ScopedLock sl (innerMutex);
         
-        if (hostedPluginInstance == nullptr)
-        {
-            return T();
-        }
+        if (hostedPluginInstance == nullptr) { return T(); }
         
         return operation(hostedPluginInstance);
     }
     
     //==============================================================================
+    using PluginLoadingCallback = std::function<void(std::unique_ptr<juce::AudioPluginInstance> pluginInstance)>;
+    
     void removePrevioslyHostedPluginIfNeeded(bool unsetError);
-    void loadPluginFromFile(juce::String pluginPath, std::function<void(std::unique_ptr<juce::AudioPluginInstance> pluginInstance)> callback);
+    void loadPluginFromFile(juce::String pluginPath, PluginLoadingCallback callback);
     bool setHostedPluginLayout();
     bool prepareHostedPluginForPlaying();
     static inline const juce::String unexpectedPluginLoadingError = "Unexpected error while loading the plugin";

@@ -79,18 +79,15 @@ bool VST3WrapperAudioProcessor::isHostedPluginLoaded()
     return safelyPerform<bool>([](auto& p) { return p != nullptr; });
 }
 
-void VST3WrapperAudioProcessor::loadPlugin(juce::String pluginPath)
+void VST3WrapperAudioProcessor::loadPlugin(const juce::String pluginPath)
 {
-    if (isCurrentlyLoading())
-    {
-        return;
-    }
+    if (isCurrentlyLoading()) { return; }
     
     setIsLoading(true);
     
     removePrevioslyHostedPluginIfNeeded(true);
         
-    loadPluginFromFile(pluginPath, [this](std::unique_ptr<juce::AudioPluginInstance> pluginInstance)
+    loadPluginFromFile(pluginPath, [this](auto pluginInstance)
     {
         if (pluginInstance == nullptr)
         {
@@ -100,18 +97,19 @@ void VST3WrapperAudioProcessor::loadPlugin(juce::String pluginPath)
         }
         
         auto desc = pluginInstance->getPluginDescription();
-        setHostedPluginName(desc.manufacturerName + " - " + desc.name);
+        auto pluginName = desc.manufacturerName + " - " + desc.name;
+        
         setHostedPluginInstance(std::move(pluginInstance));
         
         auto successfullyConfigured = true;
         successfullyConfigured &= setHostedPluginLayout();
+        successfullyConfigured &= prepareHostedPluginForPlaying();
         
-#if ! JucePlugin_IsMidiEffect
-        auto pluginName = getHostedPluginName();
+#if JucePlugin_IsMidiEffect
+        setHostedPluginName(pluginName);
+#else
         setHostedPluginName(pluginName + " (" + getTargetLayoutDescription() + ")");
 #endif
-        
-        successfullyConfigured &= prepareHostedPluginForPlaying();
         
         if (!successfullyConfigured)
         {
@@ -132,10 +130,7 @@ bool  VST3WrapperAudioProcessor::isCurrentlyLoading()
 
 void VST3WrapperAudioProcessor::closeHostedPlugin()
 {
-    if (isCurrentlyLoading())
-    {
-        return;
-    }
+    if (isCurrentlyLoading()) { return; }
     
     removePrevioslyHostedPluginIfNeeded(true);
 }
@@ -167,7 +162,7 @@ juce::AudioProcessorEditor* VST3WrapperAudioProcessor::createHostedPluginEditorI
 // Plugin loading
 //==============================================================================
 
-void VST3WrapperAudioProcessor::removePrevioslyHostedPluginIfNeeded(bool unsetError)
+void VST3WrapperAudioProcessor::removePrevioslyHostedPluginIfNeeded(const bool unsetError)
 {
     safelyPerform<void>([](auto& p)
     {
@@ -176,19 +171,14 @@ void VST3WrapperAudioProcessor::removePrevioslyHostedPluginIfNeeded(bool unsetEr
     });
    
     setHostedPluginInstance(nullptr);
-    
-    if (unsetError)
-    {
-        setHostedPluginLoadingError("");
-    }
-    
+    if (unsetError) { setHostedPluginLoadingError(""); }
     setIsLoading(false);
     setTargetLayoutDescription("");
     setHostedPluginHasSidechainInput(false);
     setHostedPluginName("");
 }
 
-void VST3WrapperAudioProcessor::loadPluginFromFile(juce::String pluginPath, std::function<void(std::unique_ptr<juce::AudioPluginInstance> pluginInstance)> vst3FileLoadingCompleted)
+void VST3WrapperAudioProcessor::loadPluginFromFile(const juce::String pluginPath, const PluginLoadingCallback vst3FileLoadingCompleted)
 {
     // Some plugins crash if they are scanned from a background thread
     juce::MessageManager::callAsync([this, pluginPath, vst3FileLoadingCompleted]() {
@@ -239,7 +229,7 @@ void VST3WrapperAudioProcessor::loadPluginFromFile(juce::String pluginPath, std:
         juce::String errorMessage;
         
         formatManager.createPluginInstanceAsync(pluginDescription, getSampleRate(), getBlockSize(),
-            [this, vst3FileLoadingCompleted](std::unique_ptr<juce::AudioPluginInstance> pluginInstance, const juce::String& errorMessage)
+            [this, vst3FileLoadingCompleted](auto pluginInstance, const juce::String& errorMessage)
             {
             
             if (pluginInstance == nullptr)
@@ -281,15 +271,6 @@ bool VST3WrapperAudioProcessor::setHostedPluginLayout()
 #else
     auto sideChainBusIndex = 1;
 #endif
-    juce::String layoutNotSupportedError = "Selected plugin doesn't support current channel layout";
-    auto hostedPluginTotalNumOfInputChannels = safelyPerform<int>([](auto& p) { return p->getTotalNumInputChannels();});
-    auto hostedPluginTotalNumOfOutputChannels = safelyPerform<int>([](auto& p) { return p->getTotalNumOutputChannels();});
-    
-    auto layoutErrorMassage = [layoutNotSupportedError, hostedPluginTotalNumOfInputChannels, hostedPluginTotalNumOfOutputChannels](int numOfInputChannels, int numOfOutputChannels)
-    {
-        auto layoutMismatchString = juce::String(numOfInputChannels) + "->" + juce::String(numOfOutputChannels) + " vs. " + juce::String(hostedPluginTotalNumOfInputChannels) + "->" + juce::String(hostedPluginTotalNumOfOutputChannels);
-        return layoutNotSupportedError + " (" + layoutMismatchString + ")";
-    };
     
     auto currentLayout = getBusesLayout();
     auto hostedPluginDefaultLayout = safelyPerform<juce::AudioProcessor::BusesLayout>([](auto& p) { return p->getBusesLayout(); });
@@ -326,7 +307,9 @@ bool VST3WrapperAudioProcessor::setHostedPluginLayout()
     
     if (!layoutSuccesfullySet)
     {
-        setHostedPluginLoadingError(layoutErrorMassage(totalNumInputChannels, totalNumOutputChannels));
+        juce::String layoutNotSupportedError = "Selected plugin doesn't support current channel layout";
+        auto targetLayoutDescription = juce::String(totalNumInputChannels) + "->" + juce::String(totalNumOutputChannels);
+        setHostedPluginLoadingError(layoutNotSupportedError + " (" + targetLayoutDescription + ")");
     }
     
     setHostedPluginHasSidechainInput(layoutSuccesfullySet && targetLayout.inputBuses.size() == sideChainBusIndex + 1);
