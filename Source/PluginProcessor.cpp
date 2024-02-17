@@ -79,25 +79,25 @@ bool VST3WrapperAudioProcessor::isHostedPluginLoaded()
     return safelyPerform<bool>([](auto& p) { return p != nullptr; });
 }
 
-void VST3WrapperAudioProcessor::loadPlugin(const juce::String pluginPath)
+void VST3WrapperAudioProcessor::loadPlugin(const juce::String& pluginPath)
 {
     if (isCurrentlyLoading()) { return; }
     
-    setIsLoading(true);
-    
     removePrevioslyHostedPluginIfNeeded(true);
-        
-    loadPluginFromFile(pluginPath, [this](auto pluginInstance)
+
+    setIsLoading(true);
+            
+    loadPluginFromFile(pluginPath, [&](auto pluginInstance)
     {
         if (pluginInstance == nullptr)
         {
             setIsLoading(false);
-            juce::MessageManager::callAsync([this]() { sendChangeMessage(); });
+            juce::MessageManager::callAsync([&]() { sendChangeMessage(); });
             return;
         }
         
-        auto desc = pluginInstance->getPluginDescription();
-        auto pluginName = desc.manufacturerName + " - " + desc.name;
+        const auto desc = pluginInstance->getPluginDescription();
+        const auto pluginName = desc.manufacturerName + " - " + desc.name;
         
         setHostedPluginInstance(std::move(pluginInstance));
         
@@ -118,7 +118,7 @@ void VST3WrapperAudioProcessor::loadPlugin(const juce::String pluginPath)
         
         setIsLoading(false);
         
-        juce::MessageManager::callAsync([this]() { sendChangeMessage(); });
+        juce::MessageManager::callAsync([&]() { sendChangeMessage(); });
     });
 }
 
@@ -162,7 +162,7 @@ juce::AudioProcessorEditor* VST3WrapperAudioProcessor::createHostedPluginEditorI
 // Plugin loading
 //==============================================================================
 
-void VST3WrapperAudioProcessor::removePrevioslyHostedPluginIfNeeded(const bool unsetError)
+void VST3WrapperAudioProcessor::removePrevioslyHostedPluginIfNeeded(bool unsetError)
 {
     safelyPerform<void>([](auto& p)
     {
@@ -178,10 +178,10 @@ void VST3WrapperAudioProcessor::removePrevioslyHostedPluginIfNeeded(const bool u
     setHostedPluginName("");
 }
 
-void VST3WrapperAudioProcessor::loadPluginFromFile(const juce::String pluginPath, const PluginLoadingCallback vst3FileLoadingCompleted)
+void VST3WrapperAudioProcessor::loadPluginFromFile(const juce::String& pluginPath, PluginLoadingCallback vst3FileLoadingCompleted)
 {
     // Some plugins crash if they are scanned from a background thread
-    juce::MessageManager::callAsync([this, pluginPath, vst3FileLoadingCompleted]() {
+    juce::MessageManager::callAsync([=]() {
         
         juce::OwnedArray<juce::PluginDescription> descs;
         juce::VST3PluginFormat vst3Format;
@@ -225,11 +225,11 @@ void VST3WrapperAudioProcessor::loadPluginFromFile(const juce::String pluginPath
             return;
         }
         
-        auto pluginDescription = *descs[descIndex];
+        const auto pluginDescription = *descs[descIndex];
         juce::String errorMessage;
         
         formatManager.createPluginInstanceAsync(pluginDescription, getSampleRate(), getBlockSize(),
-            [this, vst3FileLoadingCompleted](auto pluginInstance, const juce::String& errorMessage)
+            [=](auto pluginInstance, const auto& errorMessage)
             {
             
             if (pluginInstance == nullptr)
@@ -267,15 +267,15 @@ bool VST3WrapperAudioProcessor::setHostedPluginLayout()
 #else
     
 #if JucePlugin_IsSynth
-    auto sideChainBusIndex = 0;
+    const auto sideChainBusIndex = 0;
 #else
-    auto sideChainBusIndex = 1;
+    const auto sideChainBusIndex = 1;
 #endif
     
-    auto currentLayout = getBusesLayout();
-    auto hostedPluginDefaultLayout = safelyPerform<juce::AudioProcessor::BusesLayout>([](auto& p) { return p->getBusesLayout(); });
-    auto inputBusesOfHostedPlugin = hostedPluginDefaultLayout.inputBuses;
-    auto outputBusesOfHostedPlugin = hostedPluginDefaultLayout.outputBuses;
+    const auto currentLayout = getBusesLayout();
+    const auto hostedPluginDefaultLayout = safelyPerform<juce::AudioProcessor::BusesLayout>([](auto& p) { return p->getBusesLayout(); });
+    const auto inputBusesOfHostedPlugin = hostedPluginDefaultLayout.inputBuses;
+    const auto outputBusesOfHostedPlugin = hostedPluginDefaultLayout.outputBuses;
     
     juce::AudioProcessor::BusesLayout targetLayout;
     
@@ -316,7 +316,7 @@ bool VST3WrapperAudioProcessor::setHostedPluginLayout()
     
     setTargetLayoutDescription(layoutDescription);
     
-    auto layoutSuccesfullySet = safelyPerform<bool>([targetLayout](auto& p) { return p->setBusesLayout(targetLayout); });
+    const auto layoutSuccesfullySet = safelyPerform<bool>([&](auto& p) { return p->setBusesLayout(targetLayout); });
     
     if (!layoutSuccesfullySet)
     {
@@ -334,7 +334,7 @@ bool VST3WrapperAudioProcessor::prepareHostedPluginForPlaying()
 {
     setLatencySamples(safelyPerform<int>([](auto& p) { return p->getLatencySamples(); }));
     
-    safelyPerform<void>([this](auto& p)
+    safelyPerform<void>([&](auto& p)
     {
 #if JucePlugin_IsMidiEffect
         p->setPlayConfigDetails(0, 2, getSampleRate(), getBlockSize());
@@ -411,7 +411,7 @@ int preparedCount;
 
 void VST3WrapperAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
-    safelyPerform<void>([this, sampleRate, samplesPerBlock](auto& p)
+    safelyPerform<void>([&](auto& p)
     {
 #if JucePlugin_IsMidiEffect
         p->setPlayConfigDetails(0, 2, sampleRate, samplesPerBlock);
@@ -424,7 +424,7 @@ void VST3WrapperAudioProcessor::prepareToPlay (double sampleRate, int samplesPer
 
 void VST3WrapperAudioProcessor::reset()
 {
-    safelyPerform<void>([this](auto& p)
+    safelyPerform<void>([&](auto& p)
     {
         p->reset();
     });
@@ -432,7 +432,7 @@ void VST3WrapperAudioProcessor::reset()
 
 void VST3WrapperAudioProcessor::releaseResources()
 {
-    safelyPerform<void>([this](auto& p)
+    safelyPerform<void>([&](auto& p)
     {
         p->releaseResources();
     });
@@ -469,7 +469,7 @@ bool VST3WrapperAudioProcessor::isBusesLayoutSupported (const BusesLayout& layou
 
 void VST3WrapperAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
-    safelyPerform<void>([this, &buffer, &midiMessages](auto& p)
+    safelyPerform<void>([&](auto& p)
     {
         p->setPlayHead(getPlayHead());
         p->processBlock(buffer, midiMessages);
@@ -478,7 +478,7 @@ void VST3WrapperAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
 
 void VST3WrapperAudioProcessor::processBlockBypassed(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
-    safelyPerform<void>([this, &buffer, &midiMessages](auto& p)
+    safelyPerform<void>([&](auto& p)
     {
         p->processBlockBypassed(buffer, midiMessages);
     });

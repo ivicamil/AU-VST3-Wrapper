@@ -51,7 +51,7 @@ private:
     VST3WrapperAudioProcessor& audioProcessor;
     juce::ThreadPool threadPool {1};
     std::unique_ptr<juce::AudioProcessorEditor> hostedPluginEditor;
-    void loadPlugin(juce::String filePath);
+    void loadPlugin(const juce::String& filePath);
     void closePlugin();
     void setHostedPluginEditorIfNeeded();
     
@@ -83,7 +83,7 @@ private:
     
     int getEditorHeight()
     {
-        auto buttonViewHeight = buttonHeight + buttonTopspacing;
+        const auto buttonViewHeight = buttonHeight + buttonTopspacing;
         return  getHostedPluginEditorOrPluginListHeight() + buttonViewHeight + labelHeight;
     }
     

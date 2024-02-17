@@ -57,7 +57,7 @@ VST3WrapperAudioProcessorEditor::~VST3WrapperAudioProcessorEditor()
 
 //==============================================================================
 
-void VST3WrapperAudioProcessorEditor::loadPlugin(juce::String filePath)
+void VST3WrapperAudioProcessorEditor::loadPlugin(const juce::String& filePath)
 {
     // If present, the old hosted plugin editor is now deleted and set to nullptr so that
     // the main audio processor can safely delete its processor
@@ -91,7 +91,7 @@ void VST3WrapperAudioProcessorEditor::setHostedPluginEditorIfNeeded()
 {
     if (!audioProcessor.isHostedPluginLoaded()) { return; }
     
-    auto newEditor = audioProcessor.createHostedPluginEditorIfNeeded();
+    const auto newEditor = audioProcessor.createHostedPluginEditorIfNeeded();
     
     if (newEditor == nullptr) { return; }
     
@@ -113,10 +113,10 @@ void VST3WrapperAudioProcessorEditor::setLoadingState()
     statusLabel.setText("Loading...", juce::dontSendNotification);
 }
 
-void VST3WrapperAudioProcessorEditor::processorStateChanged(bool shouldShowPluginLoadingError)
+void VST3WrapperAudioProcessorEditor::processorStateChanged(const bool shouldShowPluginLoadingError)
 {
-    auto isHostedPluginLoaded = audioProcessor.isHostedPluginLoaded();
-    auto pluginLoadingError = audioProcessor.getHostedPluginLoadingError();
+    const auto isHostedPluginLoaded = audioProcessor.isHostedPluginLoaded();
+    const auto pluginLoadingError = audioProcessor.getHostedPluginLoadingError();
     
     pluginFileBrowser.get()->setVisible(!isHostedPluginLoaded);
     pluginFileBrowser->setEnabled(true);
@@ -135,8 +135,8 @@ void VST3WrapperAudioProcessorEditor::processorStateChanged(bool shouldShowPlugi
     }
     else
     {
-        auto isShowingError = shouldShowPluginLoadingError && !pluginLoadingError.isEmpty();
-        auto labelText = isShowingError ? pluginLoadingError : noPluginLoadedMessage;
+        const auto isShowingError = shouldShowPluginLoadingError && !pluginLoadingError.isEmpty();
+        const auto labelText = isShowingError ? pluginLoadingError : noPluginLoadedMessage;
         statusLabel.setColour(juce::Label::textColourId, isShowingError ? juce::Colours::red : juce::Colours::white);
         statusLabel.setText(labelText, juce::dontSendNotification);
     }
@@ -177,7 +177,7 @@ void VST3WrapperAudioProcessorEditor::buttonClicked(juce::Button* button)
 {
     if (button == &loadPluginButton)
     {
-        auto file = pluginFileBrowser->getSelectedFile(0);
+        const auto file = pluginFileBrowser->getSelectedFile(0);
         
         if (file.exists() && file.hasFileExtension(VST3FileBrowserComponent::vst3Extension))
         {
@@ -198,9 +198,9 @@ void VST3WrapperAudioProcessorEditor::drawSidechainArrow(juce::Graphics& g)
     float editorHeight = getHeight();
     float arrowLowestY = editorHeight;
     
-    auto p1 = juce::Point<float>(editorWidth, arrowLowestY);
-    auto p2 = juce::Point<float>(editorWidth,  arrowLowestY - arrowHeight);
-    auto p3 = juce::Point<float>(editorWidth - arrowLength, arrowLowestY - arrowHeight/2);
+    const auto p1 = juce::Point<float>(editorWidth, arrowLowestY);
+    const auto p2 = juce::Point<float>(editorWidth,  arrowLowestY - arrowHeight);
+    const auto p3 = juce::Point<float>(editorWidth - arrowLength, arrowLowestY - arrowHeight/2);
     
     juce::Path triangle;
     triangle.startNewSubPath(p1);

@@ -82,7 +82,7 @@ public:
      *
      * @param pluginPath The path of a VST3 file.
      */
-    void loadPlugin(juce::String pluginPath);
+    void loadPlugin(const juce::String& pluginPath);
     
     /**
      * @brief This method closes currently loaded plugin and resets processor's state.
@@ -144,7 +144,7 @@ private:
     using PluginLoadingCallback = std::function<void(std::unique_ptr<juce::AudioPluginInstance> pluginInstance)>;
     
     void removePrevioslyHostedPluginIfNeeded(bool unsetError);
-    void loadPluginFromFile(juce::String pluginPath, PluginLoadingCallback callback);
+    void loadPluginFromFile(const juce::String& pluginPath, PluginLoadingCallback callback);
     bool setHostedPluginLayout();
     bool prepareHostedPluginForPlaying();
     static inline const juce::String unexpectedPluginLoadingError = "Unexpected error while loading the plugin";
@@ -161,7 +161,7 @@ private:
         isLoading = value;
     }
 
-    void setHostedPluginLoadingError(const juce::String value)
+    void setHostedPluginLoadingError(juce::String value)
     {
         const juce::ScopedLock sl(innerMutex);
         hostedPluginLoadingError = value;
@@ -173,13 +173,13 @@ private:
         hostedPluginHasSidechainInput = value;
     }
 
-    void setHostedPluginName(const juce::String value)
+    void setHostedPluginName(juce::String value)
     {
         const juce::ScopedLock sl(innerMutex);
         hostedPluginName = value;
     }
     
-    void setTargetLayoutDescription(const juce::String value)
+    void setTargetLayoutDescription(juce::String value)
     {
         const juce::ScopedLock sl(innerMutex);
         targetLayoutDescription = value;
