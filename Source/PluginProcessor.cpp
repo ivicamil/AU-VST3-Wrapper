@@ -289,27 +289,39 @@ bool VST3WrapperAudioProcessor::setHostedPluginLayout()
         targetLayout.outputBuses.add(i < currentLayout.outputBuses.size() ? currentLayout.outputBuses[i] : juce::AudioChannelSet::disabled());
     }
     
-    int totalNumInputChannels = 0;
-    for (int i = 0; i < targetLayout.inputBuses.size(); ++i)
+    juce::String layoutDescription;
+    
+#if JucePlugin_IsSynth
+    if (targetLayout.outputBuses.size() == 1)
     {
-        totalNumInputChannels += targetLayout.inputBuses[i].size();
+        layoutDescription = targetLayout.getChannelSet(false, 0).getDescription();
     }
-
-    int totalNumOutputChannels = 0;
-    for (int i = 0; i < targetLayout.outputBuses.size(); ++i)
+    else if (targetLayout.outputBuses.size() > 1)
     {
-        totalNumOutputChannels += targetLayout.outputBuses[i].size();
+        layoutDescription = "Multioutput";
+    }
+#else
+    if (targetLayout.inputBuses.size() >= 1)
+    {
+        layoutDescription += targetLayout.getChannelSet(true, 0).getDescription();
     }
     
-    setTargetLayoutDescription(juce::String(totalNumInputChannels) + "->" + juce::String(totalNumOutputChannels));
+    layoutDescription += "->";
+    
+    if (targetLayout.outputBuses.size() >= 1)
+    {
+        layoutDescription += targetLayout.getChannelSet(false, 0).getDescription();
+    }
+#endif
+    
+    setTargetLayoutDescription(layoutDescription);
     
     auto layoutSuccesfullySet = safelyPerform<bool>([targetLayout](auto& p) { return p->setBusesLayout(targetLayout); });
     
     if (!layoutSuccesfullySet)
     {
         juce::String layoutNotSupportedError = "Selected plugin doesn't support current channel layout";
-        auto targetLayoutDescription = juce::String(totalNumInputChannels) + "->" + juce::String(totalNumOutputChannels);
-        setHostedPluginLoadingError(layoutNotSupportedError + " (" + targetLayoutDescription + ")");
+        setHostedPluginLoadingError(layoutNotSupportedError + " (" + layoutDescription + ")");
     }
     
     setHostedPluginHasSidechainInput(layoutSuccesfullySet && targetLayout.inputBuses.size() == sideChainBusIndex + 1);
