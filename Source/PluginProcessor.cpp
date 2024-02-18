@@ -226,8 +226,6 @@ void VST3WrapperAudioProcessor::loadPluginFromFile(const juce::String& pluginPat
         }
         
         const auto pluginDescription = *descs[descIndex];
-        juce::String errorMessage;
-        
         
         auto callback = [=](auto pluginInstance, const auto& errorMessage)
         {
