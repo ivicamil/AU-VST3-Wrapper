@@ -30,9 +30,9 @@ A better way is to host a VST3 inside an audio unit in a MIDI FX slot in Logic. 
 
 This repository also contains instrument and audio FX versions of the wrapper, but hosting VST3s as instruments or effects in Logic is not that useful. I do that only in rare cases when an Audio Unit version of an instrument or effect has some bug not present in the VST3 version.
 
-## Disclamer
+## Disclaimer
 
-I am neither C++ nor audio plugin developer. This is my first ever C++ project and the product is intended for personal use. Don't use this code uncritically. It's probably far from the best practices. And the plugin it's not thoroughly tested. But the worst thing that can happen is that it doesn't work properly in some scenarios or that it crashes here and there. If you use Logic on Apple Silicon, plugin crash won't crash the Logic itself. So it's safe to try it. If it works for you great! If not, you can try to fix it or improve it. :)
+I am neither C++ nor audio plugin developer. This is my first ever C++ project and the product is intended for personal use. Don't use this code uncritically. It's probably far from the best practices. And the plugin it's not thoroughly tested. But the worst thing that can happen is that it doesn't work properly in some scenarios or that it crashes here and there. If you use Logic on Apple Silicon, plugin crash won't crash the Logic itself. So it's safe to try it. If it works for you, great! If not, you can try to fix it or improve it. :)
 
 ## Building the Projects
 
