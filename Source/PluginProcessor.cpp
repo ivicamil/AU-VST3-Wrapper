@@ -86,7 +86,7 @@ void VST3WrapperAudioProcessor::loadPlugin(const juce::String& pluginPath)
 
     setIsLoading(true);
             
-    auto callback = [&](auto pluginInstance)
+    auto callback = [&, pluginPath](auto pluginInstance)
     {
         if (pluginInstance == nullptr)
         {
@@ -103,7 +103,9 @@ void VST3WrapperAudioProcessor::loadPlugin(const juce::String& pluginPath)
         auto successfullyConfigured = true;
         successfullyConfigured &= setHostedPluginLayout();
         successfullyConfigured &= prepareHostedPluginForPlaying();
-        
+        setHostedPluginState();
+        setHostedPluginPath(pluginPath);
+
 #if JucePlugin_IsMidiEffect
         setHostedPluginName(pluginName);
 #else
@@ -172,6 +174,8 @@ void VST3WrapperAudioProcessor::removePrevioslyHostedPluginIfNeeded(bool unsetEr
     });
    
     setHostedPluginInstance(nullptr);
+    setHostedPluginPath("");
+    setHostedPluginStateMemoryBlock(juce::MemoryBlock());
     if (unsetError) { setHostedPluginLoadingError(""); }
     setIsLoading(false);
     setTargetLayoutDescription("");
@@ -347,6 +351,19 @@ bool VST3WrapperAudioProcessor::prepareHostedPluginForPlaying()
     return true;
 }
 
+void VST3WrapperAudioProcessor::setHostedPluginState()
+{
+    safelyPerform<void>([&](auto& p)
+    {
+        if (!getHostedPluginStateMemoryBlock().isEmpty())
+        {
+            p->setStateInformation (getHostedPluginStateMemoryBlock().getData(), (int) getHostedPluginStateMemoryBlock().getSize());
+        }
+    });
+    
+    setHostedPluginStateMemoryBlock(juce::MemoryBlock());
+}
+
 //==============================================================================
 // AudioProcessor Methods
 //==============================================================================
@@ -496,15 +513,43 @@ juce::AudioProcessorEditor* VST3WrapperAudioProcessor::createEditor()
 
 void VST3WrapperAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
-    // You should use this method to store your parameters in the memory block.
-    // You could do that either as raw data, or use the XML or ValueTree classes
-    // as intermediaries to make it easy to save and load complex data.
+    safelyPerform<void>([&](auto& p)
+    {
+        XmlElement xml ("state");
+        
+        auto filePathElement = std::make_unique<XmlElement> (pluginPathTag);
+        filePathElement->addTextElement (getHostedPluginPath());
+        xml.addChildElement (filePathElement.release());
+        
+        xml.addChildElement ([&]
+        {
+            MemoryBlock innerState;
+            p->getStateInformation (innerState);
+            auto stateNode = std::make_unique<XmlElement> (innerStateTag);
+            stateNode->addTextElement (innerState.toBase64Encoding());
+            return stateNode.release();
+        }());
+    
+        const auto text = xml.toString();
+        destData.replaceAll (text.toRawUTF8(), text.getNumBytesAsUTF8());
+    });
 }
 
 void VST3WrapperAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
-    // You should use this method to restore your parameters from this memory block,
-    // whose contents will have been created by the getStateInformation() call.
+    const ScopedLock sl (innerMutex);
+    
+    auto xml = XmlDocument::parse (String (CharPointer_UTF8 (static_cast<const char*> (data)), (size_t) sizeInBytes));
+
+    if (auto* pluginPathNode = xml->getChildByName (pluginPathTag))
+    {
+        auto pluginPath = pluginPathNode->getAllSubText();
+
+        MemoryBlock innerState;
+        innerState.fromBase64Encoding (xml->getChildElementAllSubText (innerStateTag, {}));
+        hostedPluginState = innerState;
+        loadPlugin(pluginPath);
+    }
 }
 
 // This creates new instances of the plugin..

@@ -146,13 +146,18 @@ private:
     void loadPluginFromFile(const juce::String& pluginPath, PluginLoadingCallback callback);
     bool setHostedPluginLayout();
     bool prepareHostedPluginForPlaying();
+    void setHostedPluginState();
     //==============================================================================
+    static constexpr const char* innerStateTag = "inner_state";
+    static constexpr const char* pluginPathTag = "plugin_path";
     static inline const juce::String unexpectedPluginLoadingError = "An unexpected error has occurred while loading the plugin";
     bool isLoading;
     juce::String hostedPluginLoadingError;
+    juce::String hostedPluginPath;
     bool hostedPluginHasSidechainInput;
     juce::String hostedPluginName;
     juce::String targetLayoutDescription;
+    juce::MemoryBlock hostedPluginState;
     
     void setIsLoading(bool value)
     {
@@ -164,6 +169,30 @@ private:
     {
         const juce::ScopedLock sl(innerMutex);
         hostedPluginLoadingError = value;
+    }
+    
+    void setHostedPluginPath(juce::String value)
+    {
+        const juce::ScopedLock sl(innerMutex);
+        hostedPluginPath = value;
+    }
+    
+    juce::String getHostedPluginPath()
+    {
+        const juce::ScopedLock sl(innerMutex);
+        return hostedPluginPath;
+    }
+    
+    void setHostedPluginStateMemoryBlock(juce::MemoryBlock value)
+    {
+        const juce::ScopedLock sl(innerMutex);
+        hostedPluginState = value;
+    }
+    
+    juce::MemoryBlock getHostedPluginStateMemoryBlock()
+    {
+        const juce::ScopedLock sl(innerMutex);
+        return hostedPluginState;
     }
 
     void setHostedPluginHasSidechainInput(bool value)
