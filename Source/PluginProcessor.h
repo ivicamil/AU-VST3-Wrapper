@@ -105,7 +105,7 @@ public:
      *
      * @warning The caller must take ownership of the returned editor and delete it before calling `loadPlugin` or `closeHostedPlugin`.
      *
-     * @return A pointer to `AudioProcessorEditor` of the hosted plugin or `nullptr` if no plugin is loaded or if the loaded plugin doesn't have an editor.
+     * @return A pointer to `AudioProcessorEditor` of the hosted plugin or `nullptr` if no plugin is loaded. If the loaded plugin doesn't have its own editor, a `GenericAudioProcessorEditor` is returned.
      */
     juce::AudioProcessorEditor* createHostedPluginEditorIfNeeded();
 

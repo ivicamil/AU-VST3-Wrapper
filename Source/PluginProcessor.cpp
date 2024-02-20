@@ -158,7 +158,18 @@ juce::String VST3WrapperAudioProcessor::getHostedPluginName()
 
 juce::AudioProcessorEditor* VST3WrapperAudioProcessor::createHostedPluginEditorIfNeeded()
 {
-    return safelyPerform<juce::AudioProcessorEditor*>([] (auto& p) { return p->createEditorIfNeeded(); });
+    return safelyPerform<juce::AudioProcessorEditor*>([] (auto& p)
+    {
+        auto editor = p->createEditorIfNeeded();
+        
+        if (editor == nullptr)
+        {
+            juce::AudioProcessorEditor* genericEditor = new juce::GenericAudioProcessorEditor(*p);
+            return genericEditor;
+        }
+        
+        return editor;
+    });
 }
 
 //==============================================================================

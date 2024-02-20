@@ -131,6 +131,8 @@ void VST3WrapperAudioProcessorEditor::processorStateChanged(const bool shouldSho
     {
         juce::String labelText = audioProcessor.getHostedPluginName();
         
+        // This should never happen as `hostedPluginEditor` 
+        // should at least be `GenericAudioProcessorEditor`, but just in case...
         if (hostedPluginEditor == nullptr) { labelText += " (no editor)"; }
         
         statusLabel.setColour(juce::Label::textColourId, juce::Colours::white);
