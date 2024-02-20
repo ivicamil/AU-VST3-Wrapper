@@ -441,6 +441,7 @@ void VST3WrapperAudioProcessor::prepareToPlay (double sampleRate, int samplesPer
 {
     safelyPerform<void>([&](auto& p)
     {
+        p->releaseResources();
 #if JucePlugin_IsMidiEffect
         p->setPlayConfigDetails(0, 2, sampleRate, samplesPerBlock);
 #else
