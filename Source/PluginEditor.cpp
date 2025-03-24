@@ -51,11 +51,17 @@ VST3WrapperAudioProcessorEditor::VST3WrapperAudioProcessorEditor (VST3WrapperAud
     setHostedPluginEditorIfNeeded();
     
     processorStateChanged(false);
+    
+    // A workaround for some AUs like Korg Triton,
+    // that loose focus when their editor is reloaded
+    // (see the callback for details)
+    startTimer(500);
 }
 
 VST3WrapperAudioProcessorEditor::~VST3WrapperAudioProcessorEditor()
 {
     audioProcessor.removeChangeListener (this);
+    stopTimer();
 }
 
 //==============================================================================
@@ -248,4 +254,15 @@ void VST3WrapperAudioProcessorEditor::resized()
     loadPluginButton.setBounds(margin, getButtonOriginY(), getBounds().getWidth() - 2 * margin, buttonHeight);
     closePluginButton.setBounds(margin, getButtonOriginY(), getBounds().getWidth() - 2 * margin, buttonHeight);
     statusLabel.setBounds(margin, getLabelriginY(), getBounds().getWidth() - 2 * margin, labelHeight);
+}
+
+void VST3WrapperAudioProcessorEditor::timerCallback()
+{
+    // A workaround for some AUs like Korg Triton, that loose focus when their editor is reloaded
+    // This happens in Logic on Apple Silicon, not under Rosetta.
+    // Focus can be regained, if the user clicks outside affected plugin (e.g. the status label).
+    // We focus the editor after a short delay, so that the user doesn't have to do it manually.
+    setWantsKeyboardFocus(true);
+    grabKeyboardFocus();
+    stopTimer();
 }

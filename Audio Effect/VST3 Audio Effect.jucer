@@ -5,7 +5,8 @@
               companyName="h-Moll" companyWebsite="ivicamil.com" pluginFormats="buildAU"
               pluginCharacteristicsValue="pluginProducesMidiOut,pluginWantsMidiIn"
               aaxIdentifier="com.ivicamil.VST3Effect" pluginAUMainType="'aumf'"
-              pluginManufacturerCode="H239" bundleIdentifier="com.ivicamil.vst3effect">
+              pluginManufacturerCode="H239" bundleIdentifier="com.ivicamil.vst3effect"
+              version="1.0.10">
   <MAINGROUP id="JEi7re" name="VST3 Effect">
     <GROUP id="{92274057-4AA3-B97C-941C-9440DE2B3AF2}" name="Source">
       <FILE id="S2VCbY" name="PluginEditor.cpp" compile="1" resource="0"

@@ -28,7 +28,8 @@ public juce::AudioProcessorEditor,
 public juce::ChangeListener,
 public juce::Button::Listener,
 public juce::FileBrowserListener,
-public juce::ComponentListener
+public juce::ComponentListener,
+private juce::Timer
 {
 public:
     VST3WrapperAudioProcessorEditor (VST3WrapperAudioProcessor&);
@@ -63,6 +64,8 @@ private:
             g.fillAll(juce::Colours::white.withAlpha(0.1f));
         }
     };
+    
+    void timerCallback() override;
     
     // This reference is provided as a quick way for your editor to
     // access the processor object that created it.

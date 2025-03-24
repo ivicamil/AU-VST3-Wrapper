@@ -5,7 +5,8 @@
               companyName="h-Moll" companyWebsite="ivicamil.com" pluginFormats="buildAU"
               pluginCharacteristicsValue="pluginIsSynth,pluginProducesMidiOut,pluginWantsMidiIn"
               aaxIdentifier="com.ivicamil.VST3Instrument" pluginAUMainType="'aumu'"
-              pluginManufacturerCode="H239" bundleIdentifier="com.ivicamil.vst3instrument">
+              pluginManufacturerCode="H239" bundleIdentifier="com.ivicamil.vst3instrument"
+              version="1.0.10">
   <MAINGROUP id="JEi7re" name="VST3 Instrument">
     <GROUP id="{92274057-4AA3-B97C-941C-9440DE2B3AF2}" name="Source">
       <FILE id="MpT6KJ" name="PluginEditor.cpp" compile="1" resource="0"
