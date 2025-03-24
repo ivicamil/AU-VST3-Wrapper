@@ -2,6 +2,10 @@
 
 AU-VST3-Wrapper is an AUv2 plugin for Logic Pro DAW, that can wrap and host a single VST3 plugin.
 
+## Update for Logic Pro 11:
+
+Starting from Logic 11, it is possible to route MIDI internally between tracks. VST3 wrappers like this one can still be useful for sample accurate MIDI effects or if AU version of the hosted plugin doesn't implement MIDI out.
+
 ## Motivation
 
 We sometimes want to use MIDI output of a synth as MIDI input to another synth. That way we can, for example, generate MIDI with Arturia Pigments' fantastic sequencer and  send its output to various instruments to achieve musically interesting results. The way this is done in most DAWs is by routing MIDI output of a VST3 instrument to another track.
@@ -16,9 +20,9 @@ AU plugins can also output MIDI, as mentioned in [WWDC2017 session number 501](h
 > Host can record/edit both MIDI performance and audio output from the AU
 <br>
 
-However, very few hosts capture MIDI output of AU instruments. Logic certainly doesn't. Arturia Pigments AU does produce MIDI, but that MIDI can't go anywhere from Logic's instrument slot.
+~~However, very few hosts capture MIDI output of AU instruments. Logic certainly doesn't. Arturia Pigments AU does produce MIDI, but that MIDI can't go anywhere from Logic's instrument slot.~~ (not true in Logic 11)
 
-On the other hand, AU specification and SDK does offer the official way to create actual MIDI plugins for sample-accurate MIDI transformation, which is not the case with VST3. By only changing a few lines of code, AU developers can build a MIDI FX version of their plugins that could be used as MIDI effects in Logic. But very few of them do it, for whichever reason. Furthermore, many AU instruments do not even produce MIDI, even when their VST3 versions do.
+AU specification and SDK offer the official way to create actual MIDI plugins for sample-accurate MIDI transformation, which is not the case with VST3. By only changing a few lines of code, AU developers can build a MIDI FX version of their plugins that could be used as MIDI effects in Logic. But very few of them do it, for whichever reason. Furthermore, many AU instruments do not even produce MIDI, even when their VST3 versions do.
 
 One possible solution to this problem is to host a VST3 externally and send its MIDI output to Logic vis *IAC* or *Logic Virtual In* MIDI port. A small problem with this approach is the loss of sample accuracy, but that rarely matters in practice. A bigger problem is that we need a way to synchronise Logic's clock with the external host's clock, which is doable in few ways, but not trivial.
 
