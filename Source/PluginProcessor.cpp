@@ -186,7 +186,6 @@ void VST3WrapperAudioProcessor::removePrevioslyHostedPluginIfNeeded(bool unsetEr
    
     setHostedPluginInstance(nullptr);
     setHostedPluginPath("");
-    setHostedPluginStateMemoryBlock(juce::MemoryBlock());
     if (unsetError) { setHostedPluginLoadingError(""); }
     setIsLoading(false);
     setTargetLayoutDescription("");
@@ -558,7 +557,8 @@ void VST3WrapperAudioProcessor::setStateInformation (const void* data, int sizeI
         auto pluginPath = pluginPathNode->getAllSubText();
 
         MemoryBlock innerState;
-        innerState.fromBase64Encoding (xml->getChildElementAllSubText (innerStateTag, {}));
+        auto base64String = xml->getChildElementAllSubText(innerStateTag, {});
+        innerState.fromBase64Encoding (base64String);
         hostedPluginState = innerState;
         loadPlugin(pluginPath);
     }
