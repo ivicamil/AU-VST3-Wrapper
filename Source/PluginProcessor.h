@@ -36,6 +36,10 @@ public:
 
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
     void processBlockBypassed(juce::AudioBuffer<float>&,juce::MidiBuffer&) override;
+    void processBlock (juce::AudioBuffer<double>&, juce::MidiBuffer&) override;
+    void processBlockBypassed(juce::AudioBuffer<double>&,juce::MidiBuffer&) override;
+    template<typename FloatType>
+    void processBlockInternal(juce::AudioBuffer<FloatType>& buffer, juce::MidiBuffer& midiMessages, bool setPlayhead);
 
     //==============================================================================
     juce::AudioProcessorEditor* createEditor() override;
@@ -205,18 +209,6 @@ private:
     {
         const juce::ScopedLock sl(innerMutex);
         hostedPluginName = value;
-    }
-    
-    void setTargetLayoutDescription(juce::String value)
-    {
-        const juce::ScopedLock sl(innerMutex);
-        targetLayoutDescription = value;
-    }
-    
-    juce::String getTargetLayoutDescription()
-    {
-        const juce::ScopedLock sl(innerMutex);
-        return targetLayoutDescription;
     }
     
     //==============================================================================

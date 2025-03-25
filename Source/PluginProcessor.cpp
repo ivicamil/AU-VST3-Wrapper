@@ -106,11 +106,7 @@ void VST3WrapperAudioProcessor::loadPlugin(const juce::String& pluginPath)
         setHostedPluginState();
         setHostedPluginPath(pluginPath);
 
-#if JucePlugin_IsMidiEffect
         setHostedPluginName(pluginName);
-#else
-        setHostedPluginName(pluginName + " (" + getTargetLayoutDescription() + ")");
-#endif
         
         if (!successfullyConfigured)
         {
@@ -188,7 +184,6 @@ void VST3WrapperAudioProcessor::removePrevioslyHostedPluginIfNeeded(bool unsetEr
     setHostedPluginPath("");
     if (unsetError) { setHostedPluginLoadingError(""); }
     setIsLoading(false);
-    setTargetLayoutDescription("");
     setHostedPluginHasSidechainInput(false);
     setHostedPluginName("");
 }
@@ -276,72 +271,24 @@ void VST3WrapperAudioProcessor::loadPluginFromFile(const juce::String& pluginPat
 
 bool VST3WrapperAudioProcessor::setHostedPluginLayout()
 {
+    auto isMidiEffet = false;
 #if JucePlugin_IsMidiEffect
-    return true;
-#else
-    
-#if JucePlugin_IsSynth
+    isMidiEffet = true;
+    const auto sideChainBusIndex = 0;
+#elif JucePlugin_IsSynth
     const auto sideChainBusIndex = 0;
 #else
     const auto sideChainBusIndex = 1;
 #endif
     
-    const auto currentLayout = getBusesLayout();
-    const auto hostedPluginDefaultLayout = safelyPerform<juce::AudioProcessor::BusesLayout>([](auto& p) { return p->getBusesLayout(); });
-    const auto inputBusesOfHostedPlugin = hostedPluginDefaultLayout.inputBuses;
-    const auto outputBusesOfHostedPlugin = hostedPluginDefaultLayout.outputBuses;
+    const auto hostedPluginDefaultLayout = safelyPerform<juce::AudioProcessor::BusesLayout>([](auto& p) {
+        p -> enableAllBuses();
+        return p->getBusesLayout();
+    });
+
+    setHostedPluginHasSidechainInput(!isMidiEffet && hostedPluginDefaultLayout.inputBuses.size() == sideChainBusIndex + 1);
     
-    juce::AudioProcessor::BusesLayout targetLayout;
-    
-    for (auto i = 0; i < inputBusesOfHostedPlugin.size(); ++i)
-    {
-        targetLayout.inputBuses.add(i < currentLayout.inputBuses.size() ? currentLayout.inputBuses[i] : juce::AudioChannelSet::disabled());
-    }
-    
-    for (auto i = 0; i < outputBusesOfHostedPlugin.size(); ++i)
-    {
-        targetLayout.outputBuses.add(i < currentLayout.outputBuses.size() ? currentLayout.outputBuses[i] : juce::AudioChannelSet::disabled());
-    }
-    
-    juce::String layoutDescription;
-    
-#if JucePlugin_IsSynth
-    if (targetLayout.outputBuses.size() == 1)
-    {
-        layoutDescription = targetLayout.getChannelSet(false, 0).getDescription();
-    }
-    else if (targetLayout.outputBuses.size() > 1)
-    {
-        layoutDescription = "Multioutput";
-    }
-#else
-    if (targetLayout.inputBuses.size() >= 1)
-    {
-        layoutDescription += targetLayout.getChannelSet(true, 0).getDescription();
-    }
-    
-    layoutDescription += "->";
-    
-    if (targetLayout.outputBuses.size() >= 1)
-    {
-        layoutDescription += targetLayout.getChannelSet(false, 0).getDescription();
-    }
-#endif
-    
-    setTargetLayoutDescription(layoutDescription);
-    
-    const auto layoutSuccesfullySet = safelyPerform<bool>([&](auto& p) { return p->setBusesLayout(targetLayout); });
-    
-    if (!layoutSuccesfullySet)
-    {
-        juce::String layoutNotSupportedError = "Selected plugin doesn't support current channel layout";
-        setHostedPluginLoadingError(layoutNotSupportedError + " (" + layoutDescription + ")");
-    }
-    
-    setHostedPluginHasSidechainInput(layoutSuccesfullySet && targetLayout.inputBuses.size() == sideChainBusIndex + 1);
-    
-    return layoutSuccesfullySet;
-#endif
+    return true;
 }
 
 bool VST3WrapperAudioProcessor::prepareHostedPluginForPlaying()
@@ -350,11 +297,7 @@ bool VST3WrapperAudioProcessor::prepareHostedPluginForPlaying()
     
     safelyPerform<void>([&](auto& p)
     {
-#if JucePlugin_IsMidiEffect
-        p->setPlayConfigDetails(0, 2, getSampleRate(), getBlockSize());
-#else
         p->setRateAndBufferSizeDetails(getSampleRate(), getBlockSize());
-#endif
         p->prepareToPlay(getSampleRate(), getBlockSize());
     });
     
@@ -497,18 +440,67 @@ bool VST3WrapperAudioProcessor::isBusesLayoutSupported (const BusesLayout& layou
 
 void VST3WrapperAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
-    safelyPerform<void>([&](auto& p)
-    {
-        p->setPlayHead(getPlayHead());
-        p->processBlock(buffer, midiMessages);
-    });
+    processBlockInternal(buffer, midiMessages, true);
 }
 
 void VST3WrapperAudioProcessor::processBlockBypassed(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
+    processBlockInternal(buffer, midiMessages, false);
+}
+
+void VST3WrapperAudioProcessor::processBlock (juce::AudioBuffer<double>& buffer, juce::MidiBuffer& midiMessages)
+{
+    processBlockInternal(buffer, midiMessages, true);
+}
+
+void VST3WrapperAudioProcessor::processBlockBypassed(juce::AudioBuffer<double>& buffer, juce::MidiBuffer& midiMessages)
+{
+    processBlockInternal(buffer, midiMessages, false);
+}
+
+template<typename FloatType>
+void VST3WrapperAudioProcessor::processBlockInternal(juce::AudioBuffer<FloatType>& buffer, juce::MidiBuffer& midiMessages, bool isActive)
+{
     safelyPerform<void>([&](auto& p)
     {
-        p->processBlockBypassed(buffer, midiMessages);
+        if (isActive) {
+            p->setPlayHead(getPlayHead());
+        }
+        
+        // Some plugins (e.g. Halion 7) crash if the number of channels in the buffer is less than the number of channels in the plugin,
+        // even if we disable extra buses in the plugin's layout.
+        // So we need to make sure the buffer has the same number of channels as the plugin
+        
+        const auto hostedPluginChannels = jmax(p->getTotalNumInputChannels(), p->getTotalNumOutputChannels());
+        const auto currentChannels = buffer.getNumChannels();
+        
+        if (hostedPluginChannels > currentChannels)
+        {
+            juce::AudioBuffer<FloatType> innerBuffer(hostedPluginChannels, buffer.getNumSamples());
+
+            for (int i = 0; i < hostedPluginChannels; ++i)
+            {
+                if (i < currentChannels)
+                    innerBuffer.copyFrom(i, 0, buffer.getReadPointer(i), buffer.getNumSamples());
+                else
+                    innerBuffer.clear(i, 0, buffer.getNumSamples());
+            }
+
+            if (isActive)
+                p->processBlock(innerBuffer, midiMessages);
+            else
+                p->processBlockBypassed(innerBuffer, midiMessages);
+
+            for (int i = 0; i < currentChannels; ++i)
+                buffer.copyFrom(i, 0, innerBuffer.getReadPointer(i), buffer.getNumSamples());
+        }
+        else
+        {
+            if (isActive)
+                p->processBlock(buffer, midiMessages);
+            else
+                p->processBlockBypassed(buffer, midiMessages);
+        }
     });
 }
 
