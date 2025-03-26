@@ -38,8 +38,6 @@ public:
     void processBlockBypassed(juce::AudioBuffer<float>&,juce::MidiBuffer&) override;
     void processBlock (juce::AudioBuffer<double>&, juce::MidiBuffer&) override;
     void processBlockBypassed(juce::AudioBuffer<double>&,juce::MidiBuffer&) override;
-    template<typename FloatType>
-    void processBlockInternal(juce::AudioBuffer<FloatType>& buffer, juce::MidiBuffer& midiMessages, bool setPlayhead);
 
     //==============================================================================
     juce::AudioProcessorEditor* createEditor() override;
@@ -151,6 +149,8 @@ private:
     bool setHostedPluginLayout();
     bool prepareHostedPluginForPlaying();
     void setHostedPluginState();
+    template<typename FloatType>
+    void processBlockInternal(juce::AudioBuffer<FloatType>& buffer, juce::MidiBuffer& midiMessages, bool setPlayhead);
     //==============================================================================
     static constexpr const char* innerStateTag = "inner_state";
     static constexpr const char* pluginPathTag = "plugin_path";
