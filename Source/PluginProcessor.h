@@ -72,20 +72,11 @@ public:
     /// Returns `true` if a plugin is currently loaded and `false` otherwise
     bool isHostedPluginLoaded();
     
-    /**
-     * @brief This method tries to load a VST3 plugin instance from file at provided path.
-     *        A change broadcaster message is sent on the main thread when the method finishes.
-     *        If loading is successful, `isHostedPluginLoaded()` will return `true`.
-     *        If loading fails, `isHostedPluginLoaded()` will return `false` and `getHostedPluginLoadingError()` will contain the loading error.
-     *        VST3 instance is created asynchronously, but VST3 file scanning is done on the main thread as some plugins crash when scanned from a background thread. 
-     *
-     * @warning The method will delete previously hosted plugin, if any.
-     *          Make sure that the editor of previously hosted plugin is deleted before calling this method.
-     *
-     * @param pluginPath The path of a VST3 file.
-     */
-    void loadPlugin(const juce::String& pluginPath);
-    
+    void loadPlugin(const juce::String& pluginPath, const juce::PluginDescription& pluginDescription);
+
+    void findLoadablePluginDescriptions(const juce::String& pluginPath,
+                                        std::function<void(juce::Array<juce::PluginDescription>)> callback);
+
     /**
      * @brief This method closes currently loaded plugin (if there is one) and resets processor's state.
      *
@@ -143,9 +134,15 @@ private:
     
     //==============================================================================
     using PluginLoadingCallback = std::function<void(std::unique_ptr<juce::AudioPluginInstance> pluginInstance)>;
-    
+    using PluginLoadOperation = std::function<void(PluginLoadingCallback callback)>;
+
     void removePrevioslyHostedPluginIfNeeded(bool unsetError);
-    void loadPluginFromFile(const juce::String& pluginPath, PluginLoadingCallback callback);
+    void loadPluginFromLegacyState(const juce::String& pluginPath);
+    void loadPluginInternal(const juce::String& pluginPath, PluginLoadOperation loadOperation);
+    juce::Array<juce::PluginDescription> findLoadablePluginDescriptionsInFile(const juce::String& pluginPath);
+    juce::Array<juce::PluginDescription> findPluginDescriptionsInFile(const juce::String& pluginPath);
+    juce::Array<juce::PluginDescription> filterLoadablePluginDescriptions(const juce::Array<juce::PluginDescription>& pluginDescriptions);
+    void createPluginInstance(const juce::PluginDescription& pluginDescription, PluginLoadingCallback callback);
     bool setHostedPluginLayout();
     bool prepareHostedPluginForPlaying();
     void setHostedPluginState();
@@ -154,6 +151,7 @@ private:
     //==============================================================================
     static constexpr const char* innerStateTag = "inner_state";
     static constexpr const char* pluginPathTag = "plugin_path";
+    static constexpr const char* pluginDescriptionTag = "PLUGIN";
     static inline const juce::String unexpectedPluginLoadingError = "An unexpected error has occurred while loading the plugin";
     bool isLoading;
     juce::String hostedPluginLoadingError;

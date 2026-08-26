@@ -78,47 +78,42 @@ bool VST3WrapperAudioProcessor::isHostedPluginLoaded()
     return safelyPerform<bool>([](auto& p) { return p != nullptr; });
 }
 
-void VST3WrapperAudioProcessor::loadPlugin(const juce::String& pluginPath)
+void VST3WrapperAudioProcessor::loadPluginFromLegacyState(const juce::String& pluginPath)
 {
-    if (isCurrentlyLoading()) { return; }
-    
-    removePrevioslyHostedPluginIfNeeded(true);
-
-    setIsLoading(true);
-            
-    auto callback = [&, pluginPath](auto pluginInstance)
+    loadPluginInternal(pluginPath, [this, pluginPath](PluginLoadingCallback callback)
     {
-        if (pluginInstance == nullptr)
+        // Some plugins crash if they are scanned from a background thread.
+        juce::MessageManager::callAsync([=]()
         {
-            setIsLoading(false);
-            juce::MessageManager::callAsync([&]() { sendChangeMessage(); });
-            return;
-        }
-        
-        const auto desc = pluginInstance->getPluginDescription();
-        const auto pluginName = desc.manufacturerName + " - " + desc.name;
-        
-        setHostedPluginInstance(std::move(pluginInstance));
-        
-        auto successfullyConfigured = true;
-        successfullyConfigured &= setHostedPluginLayout();
-        successfullyConfigured &= prepareHostedPluginForPlaying();
-        setHostedPluginState();
-        setHostedPluginPath(pluginPath);
+            const auto validDescriptions = findLoadablePluginDescriptionsInFile(pluginPath);
 
-        setHostedPluginName(pluginName);
-        
-        if (!successfullyConfigured)
-        {
-            removePrevioslyHostedPluginIfNeeded(false);
-        }
-        
-        setIsLoading(false);
-        
-        juce::MessageManager::callAsync([&]() { sendChangeMessage(); });
-    };
-    
-    loadPluginFromFile(pluginPath, std::move(callback));
+            if (validDescriptions.isEmpty())
+            {
+                callback(nullptr);
+                return;
+            }
+
+            createPluginInstance(validDescriptions.getReference(0), std::move(callback));
+        });
+    });
+}
+
+void VST3WrapperAudioProcessor::loadPlugin(const juce::String& pluginPath, const juce::PluginDescription& pluginDescription)
+{
+    loadPluginInternal(pluginPath, [this, pluginDescription](PluginLoadingCallback callback)
+    {
+        createPluginInstance(pluginDescription, std::move(callback));
+    });
+}
+
+void VST3WrapperAudioProcessor::findLoadablePluginDescriptions(const juce::String& pluginPath,
+                                                               std::function<void(juce::Array<juce::PluginDescription>)> callback)
+{
+    // Some plugins crash if they are scanned from a background thread.
+    juce::MessageManager::callAsync([=]()
+    {
+        callback(findLoadablePluginDescriptionsInFile(pluginPath));
+    });
 }
 
 bool  VST3WrapperAudioProcessor::isCurrentlyLoading()
@@ -156,7 +151,7 @@ juce::AudioProcessorEditor* VST3WrapperAudioProcessor::createHostedPluginEditorI
 {
     return safelyPerform<juce::AudioProcessorEditor*>([] (auto& p)
     {
-        auto editor = p->createEditorIfNeeded();
+        auto editor = p-> createEditorAndMakeActive();
         
         if (editor == nullptr)
         {
@@ -188,85 +183,134 @@ void VST3WrapperAudioProcessor::removePrevioslyHostedPluginIfNeeded(bool unsetEr
     setHostedPluginName("");
 }
 
-void VST3WrapperAudioProcessor::loadPluginFromFile(const juce::String& pluginPath, PluginLoadingCallback vst3FileLoadingCompleted)
+void VST3WrapperAudioProcessor::loadPluginInternal(const juce::String& pluginPath, PluginLoadOperation loadOperation)
 {
-    // Some plugins crash if they are scanned from a background thread
-    juce::MessageManager::callAsync([=]() {
-        
-        juce::OwnedArray<juce::PluginDescription> descs;
-        vst3Format.findAllTypesForFile(descs, pluginPath);
-            
-        if (descs.isEmpty())
+    if (isCurrentlyLoading()) { return; }
+
+    removePrevioslyHostedPluginIfNeeded(true);
+
+    setIsLoading(true);
+
+    auto callback = [&, pluginPath](auto pluginInstance)
+    {
+        if (pluginInstance == nullptr)
         {
-            setHostedPluginLoadingError("No valid VST3 found in selected file");
+            setIsLoading(false);
+            juce::MessageManager::callAsync([&]() { sendChangeMessage(); });
+            return;
+        }
+
+        const auto desc = pluginInstance->getPluginDescription();
+        const auto pluginName = desc.manufacturerName + " - " + desc.name;
+
+        setHostedPluginInstance(std::move(pluginInstance));
+
+        auto successfullyConfigured = true;
+        successfullyConfigured &= setHostedPluginLayout();
+        successfullyConfigured &= prepareHostedPluginForPlaying();
+        setHostedPluginState();
+        setHostedPluginPath(pluginPath);
+
+        setHostedPluginName(pluginName);
+
+        if (!successfullyConfigured)
+        {
+            removePrevioslyHostedPluginIfNeeded(false);
+        }
+
+        setIsLoading(false);
+
+        juce::MessageManager::callAsync([&]() { sendChangeMessage(); });
+    };
+
+    loadOperation(std::move(callback));
+}
+
+juce::Array<juce::PluginDescription> VST3WrapperAudioProcessor::findLoadablePluginDescriptionsInFile(const juce::String& pluginPath)
+{
+    const auto pluginDescriptions = findPluginDescriptionsInFile(pluginPath);
+
+    if (pluginDescriptions.isEmpty())
+    {
+        setHostedPluginLoadingError("No valid VST3 found in selected file");
+        return {};
+    }
+
+    auto validDescriptions = filterLoadablePluginDescriptions(pluginDescriptions);
+
+    if (validDescriptions.isEmpty())
+    {
+#if JucePlugin_IsMidiEffect || JucePlugin_IsSynth
+        setHostedPluginLoadingError("Selected VST3 is not an instrument");
+#else
+        setHostedPluginLoadingError("Selected VST3 is not an effect");
+#endif
+    }
+
+    return validDescriptions;
+}
+
+juce::Array<juce::PluginDescription> VST3WrapperAudioProcessor::findPluginDescriptionsInFile(const juce::String& pluginPath)
+{
+    juce::OwnedArray<juce::PluginDescription> descs;
+    vst3Format.findAllTypesForFile(descs, pluginPath);
+
+    juce::Array<juce::PluginDescription> descriptions;
+
+    for (int i = 0; i < descs.size(); ++i)
+        descriptions.add(*descs[i]);
+
+    return descriptions;
+}
+
+juce::Array<juce::PluginDescription> VST3WrapperAudioProcessor::filterLoadablePluginDescriptions(const juce::Array<juce::PluginDescription>& pluginDescriptions)
+{
+    juce::Array<juce::PluginDescription> validDescriptions;
+
+    for (const auto& description : pluginDescriptions)
+    {
+#if JucePlugin_IsMidiEffect || JucePlugin_IsSynth
+        if (description.isInstrument)
+#else
+        if (!description.isInstrument)
+#endif
+            validDescriptions.add(description);
+    }
+
+    return validDescriptions;
+}
+
+void VST3WrapperAudioProcessor::createPluginInstance(const juce::PluginDescription& pluginDescription, PluginLoadingCallback vst3FileLoadingCompleted)
+{
+    auto callback = [=](auto pluginInstance, const auto& errorMessage)
+    {
+        if (pluginInstance == nullptr)
+        {
+            setHostedPluginLoadingError(errorMessage.isEmpty() ? unexpectedPluginLoadingError : errorMessage);
             vst3FileLoadingCompleted(nullptr);
             return;
         }
-        
-        auto descIndex = -1;
-        
-        auto validDescription = [](const juce::PluginDescription* d)
+
+    #if JucePlugin_IsMidiEffect
+        if (!pluginInstance->acceptsMidi())
         {
-    #if JucePlugin_IsMidiEffect || JucePlugin_IsSynth
-            return d->isInstrument;
-    #else
-            return !d->isInstrument;
-    #endif
-        };
-        
-        for (int i = 0; i < descs.size(); ++i)
-        {
-            if (validDescription(descs[i]))
-            {
-                descIndex = i;
-                break;
-            }
-        }
-        
-        if (descIndex == -1)
-        {
-    #if JucePlugin_IsMidiEffect || JucePlugin_IsSynth
-            setHostedPluginLoadingError("Selected VST3 is not an instrument");
-    #else
-            setHostedPluginLoadingError("Selected VST3 is not an effect");
-    #endif
+            setHostedPluginLoadingError("Selected VST3 Plugin Does Not Accept MIDI");
             vst3FileLoadingCompleted(nullptr);
             return;
         }
-        
-        const auto pluginDescription = *descs[descIndex];
-        
-        auto callback = [=](auto pluginInstance, const auto& errorMessage)
+
+        if (!pluginInstance->producesMidi())
         {
-            
-            if (pluginInstance == nullptr)
-            {
-                setHostedPluginLoadingError(errorMessage.isEmpty() ? unexpectedPluginLoadingError : errorMessage);
-                vst3FileLoadingCompleted(nullptr);
-                return;
-            }
-            
-        #if JucePlugin_IsMidiEffect
-            if (!pluginInstance->acceptsMidi())
-            {
-                setHostedPluginLoadingError("Selected VST3 Plugin Does Not Accept MIDI");
-                vst3FileLoadingCompleted(nullptr);
-                return;
-            }
-            
-            if (!pluginInstance->producesMidi())
-            {
-                setHostedPluginLoadingError("Selected VST3 Plugin Does Not Produce MIDI");
-                vst3FileLoadingCompleted(nullptr);
-                return;
-            }
-        #endif
-            
-            vst3FileLoadingCompleted(std::move(pluginInstance));
-        };
-        
-        vst3Format.createPluginInstanceAsync(pluginDescription, getSampleRate(), getBlockSize(), std::move(callback));
-    });
+            setHostedPluginLoadingError("Selected VST3 Plugin Does Not Produce MIDI");
+            vst3FileLoadingCompleted(nullptr);
+            return;
+        }
+    #endif
+
+        vst3FileLoadingCompleted(std::move(pluginInstance));
+    };
+
+    vst3Format.createPluginInstanceAsync(pluginDescription, getSampleRate(), getBlockSize(), std::move(callback));
 }
 
 bool VST3WrapperAudioProcessor::setHostedPluginLayout()
@@ -523,6 +567,9 @@ void VST3WrapperAudioProcessor::getStateInformation (juce::MemoryBlock& destData
         auto filePathElement = std::make_unique<XmlElement> (pluginPathTag);
         filePathElement->addTextElement (getHostedPluginPath());
         xml.addChildElement (filePathElement.release());
+
+        if (auto pluginDescriptionElement = p->getPluginDescription().createXml())
+            xml.addChildElement (pluginDescriptionElement.release());
         
         xml.addChildElement ([&]
         {
@@ -544,15 +591,30 @@ void VST3WrapperAudioProcessor::setStateInformation (const void* data, int sizeI
     
     auto xml = XmlDocument::parse (String (CharPointer_UTF8 (static_cast<const char*> (data)), (size_t) sizeInBytes));
 
+    if (xml == nullptr)
+        return;
+
+    MemoryBlock innerState;
+    auto base64String = xml->getChildElementAllSubText(innerStateTag, {});
+    innerState.fromBase64Encoding (base64String);
+    hostedPluginState = innerState;
+
+    if (auto* pluginDescriptionNode = xml->getChildByName (pluginDescriptionTag))
+    {
+        juce::PluginDescription pluginDescription;
+
+        if (pluginDescription.loadFromXml (*pluginDescriptionNode))
+        {
+            loadPlugin(pluginDescription.fileOrIdentifier, pluginDescription);
+            return;
+        }
+    }
+
     if (auto* pluginPathNode = xml->getChildByName (pluginPathTag))
     {
+        // Older wrapper states only stored the VST3 file path, so keep this as a compatibility fallback.
         auto pluginPath = pluginPathNode->getAllSubText();
-
-        MemoryBlock innerState;
-        auto base64String = xml->getChildElementAllSubText(innerStateTag, {});
-        innerState.fromBase64Encoding (base64String);
-        hostedPluginState = innerState;
-        loadPlugin(pluginPath);
+        loadPluginFromLegacyState(pluginPath);
     }
 }
 

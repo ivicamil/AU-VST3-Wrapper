@@ -66,19 +66,130 @@ VST3WrapperAudioProcessorEditor::~VST3WrapperAudioProcessorEditor()
 
 //==============================================================================
 
-void VST3WrapperAudioProcessorEditor::loadPlugin(const juce::String& filePath)
+void VST3WrapperAudioProcessorEditor::startLoadingPlugin(std::function<void()> loadOperation)
 {
     // If present, the old hosted plugin editor is now deleted and set to nullptr so that
     // the main audio processor can safely delete its processor
     hostedPluginEditor.reset();
     setLoadingState();
-    
-    threadPool.addJob([this, filePath]()
+
+    threadPool.addJob([loadOperation = std::move(loadOperation)]()
     {
         // Give UI some time to update
         juce::Thread::sleep(5);
-        audioProcessor.loadPlugin(filePath);
+        loadOperation();
     });
+}
+
+void VST3WrapperAudioProcessorEditor::loadPlugin(const juce::String& filePath, const juce::PluginDescription& pluginDescription)
+{
+    startLoadingPlugin([this, filePath, pluginDescription]()
+    {
+        audioProcessor.loadPlugin(filePath, pluginDescription);
+    });
+}
+
+void VST3WrapperAudioProcessorEditor::loadSelectedPluginFile()
+{
+    const auto file = pluginFileBrowser->getSelectedFile(0);
+
+    if (!file.exists() || !file.hasFileExtension(VST3FileBrowserComponent::vst3Extension))
+    {
+        return;
+    }
+
+    const auto filePath = file.getFullPathName();
+    juce::Component::SafePointer<VST3WrapperAudioProcessorEditor> editor(this);
+
+    hostedPluginEditor.reset();
+    setLoadingState();
+
+    audioProcessor.findLoadablePluginDescriptions(filePath, [editor, filePath](const auto pluginDescriptions)
+    {
+        if (editor == nullptr)
+        {
+            return;
+        }
+
+        if (pluginDescriptions.isEmpty())
+        {
+            editor->processorStateChanged(true);
+            return;
+        }
+
+        if (pluginDescriptions.size() == 1)
+        {
+            editor->loadPlugin(filePath, pluginDescriptions.getReference(0));
+            return;
+        }
+
+        editor->showPluginSelectionDialog(filePath, pluginDescriptions);
+    });
+}
+
+void VST3WrapperAudioProcessorEditor::showPluginSelectionDialog(const juce::String& filePath, const juce::Array<juce::PluginDescription>& pluginDescriptions)
+{
+    pluginSelectionDialog = std::make_unique<juce::AlertWindow>("Select plugin",
+                                                                "This VST3 contains multiple plugins. Select the one you want to load.",
+                                                                juce::MessageBoxIconType::NoIcon,
+                                                                this);
+    pluginSelectionDialog->setAlwaysOnTop(true);
+
+    juce::StringArray pluginNames;
+
+    for (const auto& desc : pluginDescriptions)
+    {
+        auto pluginName = desc.manufacturerName.isEmpty() ? desc.name : desc.manufacturerName + " - " + desc.name;
+
+        if (!desc.category.isEmpty())
+            pluginName += " (" + desc.category + ")";
+
+        pluginNames.add(pluginName);
+    }
+
+    pluginSelectionDialog->addComboBox(pluginSelectionComboBoxName, pluginNames);
+
+    if (auto* comboBox = pluginSelectionDialog->getComboBoxComponent(pluginSelectionComboBoxName))
+    {
+        comboBox->setSelectedId(1, juce::dontSendNotification);
+    }
+
+    pluginSelectionDialog->addButton("Load", 1, juce::KeyPress(juce::KeyPress::returnKey));
+    pluginSelectionDialog->addButton("Cancel", 0, juce::KeyPress(juce::KeyPress::escapeKey));
+    addAndMakeVisible(pluginSelectionDialog.get());
+    pluginSelectionDialog->setCentrePosition(getLocalBounds().getCentre());
+    pluginSelectionDialog->toFront(true);
+
+    juce::Component::SafePointer<VST3WrapperAudioProcessorEditor> editor(this);
+
+    pluginSelectionDialog->enterModalState(true, juce::ModalCallbackFunction::create([editor, filePath, pluginDescriptions](const int result)
+    {
+        if (editor == nullptr)
+        {
+            return;
+        }
+
+        if (result != 1)
+        {
+            editor->pluginSelectionDialog.reset();
+            editor->processorStateChanged(false);
+            return;
+        }
+
+        auto selectedDescriptionIndex = 0;
+
+        if (auto* comboBox = editor->pluginSelectionDialog->getComboBoxComponent(pluginSelectionComboBoxName))
+            selectedDescriptionIndex = comboBox->getSelectedId() - 1;
+
+        editor->pluginSelectionDialog.reset();
+
+        if (!juce::isPositiveAndBelow(selectedDescriptionIndex, pluginDescriptions.size()))
+        {
+            return;
+        }
+
+        editor->loadPlugin(filePath, pluginDescriptions.getReference(selectedDescriptionIndex));
+    }), false);
 }
 
 void VST3WrapperAudioProcessorEditor::closePlugin()
@@ -188,12 +299,7 @@ void VST3WrapperAudioProcessorEditor::buttonClicked(juce::Button* button)
 {
     if (button == &loadPluginButton)
     {
-        const auto file = pluginFileBrowser->getSelectedFile(0);
-        
-        if (file.exists() && file.hasFileExtension(VST3FileBrowserComponent::vst3Extension))
-        {
-            loadPlugin(file.getFullPathName());
-        }
+        loadSelectedPluginFile();
     }
     else if (button == &closePluginButton)
     {

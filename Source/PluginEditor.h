@@ -72,7 +72,10 @@ private:
     VST3WrapperAudioProcessor& audioProcessor;
     juce::ThreadPool threadPool {1};
     std::unique_ptr<juce::AudioProcessorEditor> hostedPluginEditor;
-    void loadPlugin(const juce::String& filePath);
+    void startLoadingPlugin(std::function<void()> loadOperation);
+    void loadPlugin(const juce::String& filePath, const juce::PluginDescription& pluginDescription);
+    void loadSelectedPluginFile();
+    void showPluginSelectionDialog(const juce::String& filePath, const juce::Array<juce::PluginDescription>& pluginDescriptions);
     void closePlugin();
     void setHostedPluginEditorIfNeeded();
     
@@ -81,11 +84,13 @@ private:
     juce::TextButton loadPluginButton;
     juce::TextButton closePluginButton;
     juce::Label statusLabel;
+    std::unique_ptr<juce::AlertWindow> pluginSelectionDialog;
     void setLoadingState();
     void processorStateChanged(bool shouldShowPluginLoadingError);
     void drawSidechainArrow(juce::Graphics& g);
     
     static inline const juce::String noPluginLoadedMessage = "No plugin loaded";
+    static inline const juce::String pluginSelectionComboBoxName = "plugin";
     static constexpr int defaultEditorWidth = 650;
     static constexpr int margin = 10;
     static constexpr int browserHeight = 400;
