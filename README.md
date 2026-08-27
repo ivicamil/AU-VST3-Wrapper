@@ -40,7 +40,7 @@ I am neither C++ nor audio plugin developer. This is my first ever C++ project a
 
 ## Building the Projects
 
-The repo contains 3 Projucer projects, one for MIDI FX, one for Instrument and one for Audio FX AU. Those projects share the source code, but have to be built separately. To build each project, download [JUCE framework](https://juce.com) (version 7) and [Xcode](https://developer.apple.com/xcode/) (15 or higher). Generate Xcode project from each Projucer project (as explained [here](https://docs.juce.com/master/tutorial_new_projucer_project.html)) and build it. The resulting AU plugin should be automatically installed to an appropriate location where Logic can find it. You can also export an archive from Xcode project and install it manually. If you want to distribute plugins to other computers, you must sign them with Apple developer certificate and notarize it.
+The repo contains 3 Projucer projects, one for MIDI FX, one for Instrument and one for Audio FX AU. Those projects share the source code, but have to be built separately. To build each project, download [JUCE framework](https://juce.com) and [Xcode](https://developer.apple.com/xcode/). Generate Xcode project from each Projucer project (as explained [here](https://docs.juce.com/master/tutorial_new_projucer_project.html)) and build it. The resulting AU plugin should be automatically installed to an appropriate location where Logic can find it. You can also export an archive from Xcode project and install it manually. If you want to distribute plugins to other computers, you must sign them with Apple developer certificate and notarize it.
 
 ## Channel Layout Support
 
