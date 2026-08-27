@@ -27,6 +27,7 @@ VST3WrapperAudioProcessorEditor::VST3WrapperAudioProcessorEditor (VST3WrapperAud
                                                juce::File("/Library/Audio/Plug-Ins/VST3"),
                                                nullptr,
                                                nullptr));
+    pluginFileBrowser->setLookAndFeel(&pluginFileBrowserLookAndFeel);
 
     pluginSearchBox.setTextToShowWhenEmpty("Search VST3 plugins", juce::Colours::grey);
     pluginSearchBox.onTextChange = [this]()
@@ -87,6 +88,7 @@ VST3WrapperAudioProcessorEditor::VST3WrapperAudioProcessorEditor (VST3WrapperAud
 
 VST3WrapperAudioProcessorEditor::~VST3WrapperAudioProcessorEditor()
 {
+    pluginFileBrowser->setLookAndFeel(nullptr);
     audioProcessor.removeChangeListener (this);
     stopTimer();
 }

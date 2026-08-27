@@ -87,6 +87,82 @@ private:
             g.drawLine(crossBounds.getRight(), crossBounds.getY(), crossBounds.getX(), crossBounds.getBottom(), 1.6f);
         }
     };
+
+    class PluginFileBrowserLookAndFeel : public juce::LookAndFeel_V4
+    {
+    public:
+        void drawFileBrowserRow(juce::Graphics& g, int width, int height,
+                                const juce::File& file,
+                                const juce::String& filename,
+                                juce::Image* optionalIcon,
+                                const juce::String& fileSizeDescription,
+                                const juce::String& fileTimeDescription,
+                                bool isDirectory,
+                                bool isItemSelected,
+                                int itemIndex,
+                                juce::DirectoryContentsDisplayComponent& dcc) override
+        {
+            const auto isVST3Plugin = file.hasFileExtension(VST3FileBrowserComponent::vst3Extension);
+
+            if (!isVST3Plugin && !isDirectory)
+            {
+                juce::LookAndFeel_V4::drawFileBrowserRow(g, width, height, file, filename, optionalIcon,
+                                                         fileSizeDescription, fileTimeDescription,
+                                                         isDirectory, isItemSelected, itemIndex, dcc);
+                return;
+            }
+
+            auto* fileListComp = dynamic_cast<juce::Component*>(&dcc);
+
+            if (isItemSelected)
+            {
+                g.fillAll(fileListComp != nullptr ? fileListComp->findColour(juce::DirectoryContentsDisplayComponent::highlightColourId)
+                                                  : findColour(juce::DirectoryContentsDisplayComponent::highlightColourId));
+            }
+
+            const auto iconColumnWidth = 32;
+            const auto iconBounds = juce::Rectangle<float>(2.0f, 2.0f, iconColumnWidth - 4.0f, static_cast<float>(height) - 4.0f)
+                                        .withSizeKeepingCentre(18.0f, 18.0f);
+
+            if (isVST3Plugin)
+            {
+                g.setColour(juce::Colours::seagreen.withAlpha(isItemSelected ? 1.0f : 0.85f));
+                g.fillRoundedRectangle(iconBounds, 3.0f);
+
+                g.setColour(juce::Colours::white.withAlpha(0.95f));
+                const auto socketY = iconBounds.getCentreY() - 3.0f;
+                g.drawLine(iconBounds.getX() + 5.0f, socketY, iconBounds.getRight() - 5.0f, socketY, 1.4f);
+                g.drawLine(iconBounds.getX() + 5.0f, socketY + 6.0f, iconBounds.getRight() - 5.0f, socketY + 6.0f, 1.4f);
+                g.fillEllipse(iconBounds.getX() + 4.0f, socketY - 1.5f, 3.0f, 3.0f);
+                g.fillEllipse(iconBounds.getRight() - 7.0f, socketY + 4.5f, 3.0f, 3.0f);
+            }
+            else
+            {
+                const auto folderBounds = iconBounds.withTrimmedTop(2.0f).withTrimmedBottom(2.0f);
+                const auto tabBounds = juce::Rectangle<float>(folderBounds.getX() + 1.0f,
+                                                              folderBounds.getY(),
+                                                              folderBounds.getWidth() * 0.42f,
+                                                              5.0f);
+                const auto bodyBounds = folderBounds.withTrimmedTop(3.0f);
+
+                g.setColour(juce::Colours::steelblue.withAlpha(isItemSelected ? 1.0f : 0.88f));
+                g.fillRoundedRectangle(tabBounds, 2.0f);
+                g.fillRoundedRectangle(bodyBounds, 3.0f);
+
+                g.setColour(juce::Colours::white.withAlpha(0.28f));
+                g.drawRoundedRectangle(bodyBounds.reduced(1.0f), 2.0f, 1.0f);
+            }
+
+            g.setColour(isItemSelected
+                            ? (fileListComp != nullptr ? fileListComp->findColour(juce::DirectoryContentsDisplayComponent::highlightedTextColourId)
+                                                       : findColour(juce::DirectoryContentsDisplayComponent::highlightedTextColourId))
+                            : (fileListComp != nullptr ? fileListComp->findColour(juce::DirectoryContentsDisplayComponent::textColourId)
+                                                       : findColour(juce::DirectoryContentsDisplayComponent::textColourId)));
+
+            g.setFont(static_cast<float>(height) * 0.7f);
+            g.drawFittedText(filename, iconColumnWidth, 0, width - iconColumnWidth, height, juce::Justification::centredLeft, 1);
+        }
+    };
     
     void timerCallback() override;
     
@@ -102,6 +178,7 @@ private:
     void closePlugin();
     void setHostedPluginEditorIfNeeded();
     
+    PluginFileBrowserLookAndFeel pluginFileBrowserLookAndFeel;
     std::unique_ptr<VST3FileBrowserComponent> pluginFileBrowser;
     juce::TextEditor pluginSearchBox;
     ClearSearchButton clearSearchButton;
