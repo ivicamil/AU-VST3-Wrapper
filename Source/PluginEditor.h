@@ -64,6 +64,29 @@ private:
             g.fillAll(juce::Colours::white.withAlpha(0.1f));
         }
     };
+
+    class ClearSearchButton : public juce::Button
+    {
+    public:
+        ClearSearchButton()
+        : juce::Button("Clear search")
+        {
+        }
+
+        void paintButton(juce::Graphics& g, bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override
+        {
+            auto bounds = getLocalBounds().toFloat().reduced(1.0f);
+            g.setColour(findColour(juce::TextButton::buttonColourId)
+                            .brighter(shouldDrawButtonAsHighlighted ? 0.15f : 0.0f)
+                            .darker(shouldDrawButtonAsDown ? 0.15f : 0.0f));
+            g.fillRoundedRectangle(bounds, 2.0f);
+
+            const auto crossBounds = bounds.reduced(8.0f);
+            g.setColour(findColour(juce::TextButton::textColourOffId));
+            g.drawLine(crossBounds.getX(), crossBounds.getY(), crossBounds.getRight(), crossBounds.getBottom(), 1.6f);
+            g.drawLine(crossBounds.getRight(), crossBounds.getY(), crossBounds.getX(), crossBounds.getBottom(), 1.6f);
+        }
+    };
     
     void timerCallback() override;
     
@@ -80,6 +103,8 @@ private:
     void setHostedPluginEditorIfNeeded();
     
     std::unique_ptr<VST3FileBrowserComponent> pluginFileBrowser;
+    juce::TextEditor pluginSearchBox;
+    ClearSearchButton clearSearchButton;
     SemiTransparentComponent pluginFileBrowserCover;
     juce::TextButton loadPluginButton;
     juce::TextButton closePluginButton;
@@ -94,6 +119,9 @@ private:
     static constexpr int defaultEditorWidth = 650;
     static constexpr int margin = 10;
     static constexpr int browserHeight = 400;
+    static constexpr int searchBoxHeight = 28;
+    static constexpr int searchBoxSpacing = 6;
+    static constexpr int clearSearchButtonWidth = 28;
     static constexpr int labelHeight = 30;
     static constexpr int buttonHeight = 30;
     static constexpr int buttonTopspacing = 5;
@@ -117,6 +145,16 @@ private:
     int getButtonOriginY()
     {
         return getHostedPluginEditorOrPluginListHeight() + buttonTopspacing;
+    }
+
+    int getFileBrowserOriginY()
+    {
+        return margin + searchBoxHeight + searchBoxSpacing;
+    }
+
+    int getFileBrowserHeight()
+    {
+        return browserHeight - getFileBrowserOriginY();
     }
     
     int getLabelriginY()

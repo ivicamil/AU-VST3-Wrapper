@@ -27,9 +27,36 @@ VST3WrapperAudioProcessorEditor::VST3WrapperAudioProcessorEditor (VST3WrapperAud
                                                juce::File("/Library/Audio/Plug-Ins/VST3"),
                                                nullptr,
                                                nullptr));
+
+    pluginSearchBox.setTextToShowWhenEmpty("Search VST3 plugins", juce::Colours::grey);
+    pluginSearchBox.onTextChange = [this]()
+    {
+        pluginFileBrowser->setSearchText(pluginSearchBox.getText());
+        loadPluginButton.setEnabled(pluginFileBrowser->isVST3FileSelected());
+
+        const auto shouldShowClearSearchButton = pluginSearchBox.getText().isNotEmpty();
+
+        if (clearSearchButton.isVisible() != shouldShowClearSearchButton)
+        {
+            clearSearchButton.setVisible(shouldShowClearSearchButton);
+            resized();
+        }
+    };
+
+    clearSearchButton.setVisible(false);
+    clearSearchButton.onClick = [this]()
+    {
+        pluginSearchBox.clear();
+        pluginFileBrowser->setSearchText({});
+        loadPluginButton.setEnabled(pluginFileBrowser->isVST3FileSelected());
+        clearSearchButton.setVisible(false);
+        resized();
+    };
     
     audioProcessor.addChangeListener(this);
     
+    addAndMakeVisible(pluginSearchBox);
+    addAndMakeVisible(clearSearchButton);
     addAndMakeVisible(pluginFileBrowser.get());
     pluginFileBrowser->addListener(this);
     // setEnabled(false) doesn't work on FileBrowserComponent,
@@ -228,6 +255,7 @@ void VST3WrapperAudioProcessorEditor::setHostedPluginEditorIfNeeded()
 void VST3WrapperAudioProcessorEditor::setLoadingState()
 {
     loadPluginButton.setEnabled(false);
+    pluginSearchBox.setEnabled(false);
     pluginFileBrowserCover.setVisible(true);
     statusLabel.setColour(juce::Label::textColourId, juce::Colours::white);
     statusLabel.setText("Loading...", juce::dontSendNotification);
@@ -238,6 +266,10 @@ void VST3WrapperAudioProcessorEditor::processorStateChanged(const bool shouldSho
     const auto isHostedPluginLoaded = audioProcessor.isHostedPluginLoaded();
     const auto pluginLoadingError = audioProcessor.getHostedPluginLoadingError();
     
+    pluginSearchBox.setVisible(!isHostedPluginLoaded);
+    pluginSearchBox.setEnabled(!isHostedPluginLoaded);
+    clearSearchButton.setVisible(!isHostedPluginLoaded && pluginSearchBox.getText().isNotEmpty());
+    clearSearchButton.setEnabled(!isHostedPluginLoaded);
     pluginFileBrowser.get()->setVisible(!isHostedPluginLoaded);
     pluginFileBrowserCover.setVisible(false);
     loadPluginButton.setVisible(!isHostedPluginLoaded);
@@ -355,7 +387,13 @@ void VST3WrapperAudioProcessorEditor::resized()
         hostedPluginEditor->setTopLeftPosition(0, 0);
     }
    
-    pluginFileBrowser->setBounds(0, 0, getEditorWidth(), browserHeight);
+    const auto shouldShowClearSearchButton = clearSearchButton.isVisible();
+    const auto searchBoxWidth = getEditorWidth() - 2 * margin
+        - (shouldShowClearSearchButton ? clearSearchButtonWidth + searchBoxSpacing : 0);
+
+    pluginSearchBox.setBounds(margin, margin, searchBoxWidth, searchBoxHeight);
+    clearSearchButton.setBounds(getEditorWidth() - margin - clearSearchButtonWidth, margin, clearSearchButtonWidth, searchBoxHeight);
+    pluginFileBrowser->setBounds(0, getFileBrowserOriginY(), getEditorWidth(), getFileBrowserHeight());
     pluginFileBrowserCover.setBounds(0, 0, getEditorWidth(), browserHeight);
     loadPluginButton.setBounds(margin, getButtonOriginY(), getBounds().getWidth() - 2 * margin, buttonHeight);
     closePluginButton.setBounds(margin, getButtonOriginY(), getBounds().getWidth() - 2 * margin, buttonHeight);

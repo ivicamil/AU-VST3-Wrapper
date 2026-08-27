@@ -24,10 +24,41 @@ public:
     using FileBrowserComponent::FileBrowserComponent;
     
     static inline const juce::String vst3Extension = "vst3";
+
+    void setSearchText(const juce::String& newSearchText)
+    {
+        const auto newNormalisedSearchText = newSearchText.trim().toLowerCase();
+
+        if (searchText == newNormalisedSearchText)
+        {
+            return;
+        }
+
+        const auto shouldRefresh = visibleEntriesWouldChange(newNormalisedSearchText);
+        searchText = newNormalisedSearchText;
+
+        if (!shouldRefresh)
+        {
+            return;
+        }
+
+        deselectAllFiles();
+        refresh();
+    }
     
     bool isVST3FileSelected()
     {
         return getSelectedFile(0).hasFileExtension(vst3Extension);
+    }
+
+    bool isFileSuitable(const juce::File& file) const override
+    {
+        return FileBrowserComponent::isFileSuitable(file) && matchesSearchText(file);
+    }
+
+    bool isDirectorySuitable(const juce::File& directory) const override
+    {
+        return !directory.hasFileExtension(vst3Extension) || matchesSearchText(directory);
     }
     
     void fileDoubleClicked(const File& file) override
@@ -44,4 +75,52 @@ public:
     {
         return key == juce::KeyPress::returnKey && isVST3FileSelected() ? true :  FileBrowserComponent::keyPressed(key);
     }
+
+private:
+    bool matchesSearchText(const juce::File& file) const
+    {
+        return searchText.isEmpty()
+            || file.getFileNameWithoutExtension().toLowerCase().contains(searchText);
+    }
+
+    bool matchesSearchText(const juce::File& file, const juce::String& text) const
+    {
+        return text.isEmpty()
+            || file.getFileNameWithoutExtension().toLowerCase().contains(text);
+    }
+
+    bool isVisibleWithSearchText(const juce::File& file, const juce::String& text) const
+    {
+        if (file.hasFileExtension(vst3Extension))
+        {
+            return matchesSearchText(file, text);
+        }
+
+        if (file.isDirectory())
+        {
+            return true;
+        }
+
+        return FileBrowserComponent::isFileSuitable(file) && matchesSearchText(file, text);
+    }
+
+    bool visibleEntriesWouldChange(const juce::String& newSearchText) const
+    {
+        for (const auto& entry : juce::RangedDirectoryIterator(getRoot(),
+                                                               false,
+                                                               "*",
+                                                               juce::File::findFiles | juce::File::findDirectories))
+        {
+            const auto file = entry.getFile();
+
+            if (isVisibleWithSearchText(file, searchText) != isVisibleWithSearchText(file, newSearchText))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    juce::String searchText;
 };
