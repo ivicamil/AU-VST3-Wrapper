@@ -176,17 +176,22 @@ private:
     void loadSelectedPluginFile();
     void showPluginSelectionDialog(const juce::String& filePath, const juce::Array<juce::PluginDescription>& pluginDescriptions);
     void closePlugin();
+    void updatePresetList();
+    void showPresetMenu();
+    void loadPreset(const VST3WrapperAudioProcessor::HostedPluginPreset& preset);
     void setHostedPluginEditorIfNeeded();
     
     PluginFileBrowserLookAndFeel pluginFileBrowserLookAndFeel;
     std::unique_ptr<VST3FileBrowserComponent> pluginFileBrowser;
     juce::TextEditor pluginSearchBox;
     ClearSearchButton clearSearchButton;
+    juce::TextButton presetMenuButton;
     SemiTransparentComponent pluginFileBrowserCover;
     juce::TextButton loadPluginButton;
     juce::TextButton closePluginButton;
     juce::Label statusLabel;
     std::unique_ptr<juce::AlertWindow> pluginSelectionDialog;
+    juce::Array<VST3WrapperAudioProcessor::HostedPluginPreset> hostedPluginPresets;
     void setLoadingState();
     void processorStateChanged(bool shouldShowPluginLoadingError);
     void drawSidechainArrow(juce::Graphics& g);
@@ -199,6 +204,8 @@ private:
     static constexpr int searchBoxHeight = 28;
     static constexpr int searchBoxSpacing = 6;
     static constexpr int clearSearchButtonWidth = 28;
+    static constexpr int presetBarHeight = 34;
+    static constexpr int presetButtonHeight = 24;
     static constexpr int labelHeight = 30;
     static constexpr int buttonHeight = 30;
     static constexpr int buttonTopspacing = 5;
@@ -210,7 +217,7 @@ private:
     
     int getHostedPluginEditorOrPluginListHeight()
     {
-        return hostedPluginEditor == nullptr ? browserHeight : hostedPluginEditor->getHeight();
+        return hostedPluginEditor == nullptr ? browserHeight : hostedPluginEditor->getHeight() + getPresetBarHeight();
     }
     
     int getEditorHeight()
@@ -222,6 +229,11 @@ private:
     int getButtonOriginY()
     {
         return getHostedPluginEditorOrPluginListHeight() + buttonTopspacing;
+    }
+
+    int getPresetBarHeight()
+    {
+        return presetMenuButton.isVisible() ? presetBarHeight : 0;
     }
 
     int getFileBrowserOriginY()

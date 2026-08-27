@@ -19,6 +19,20 @@
 class VST3WrapperAudioProcessor  : public juce::AudioProcessor, public juce::ChangeBroadcaster
 {
 public:
+    struct HostedPluginPreset
+    {
+        enum class Source
+        {
+            Factory,
+            User
+        };
+
+        juce::String name;
+        juce::File file;
+        juce::String relativeFolder;
+        Source source = Source::Factory;
+    };
+
     //==============================================================================
     VST3WrapperAudioProcessor();
     ~VST3WrapperAudioProcessor() override;
@@ -93,6 +107,12 @@ public:
     /// Returns  "Manufacturer - Name (Channel Layout Description)" string of the hosted plugin, or an empty string if no plugin is currently loaded.
     juce::String getHostedPluginName();
 
+    /// Returns the .vstpreset files found in the standard VST3 preset folders for the currently loaded plugin.
+    juce::Array<HostedPluginPreset> getHostedPluginPresets();
+
+    /// Loads a .vstpreset file into the currently hosted VST3 plugin.
+    bool loadHostedPluginPreset(const juce::File& presetFile);
+
     /**
      * @brief Calls `createEditorIfNeeded` on the hosted plugin instance and returns the result.
      *
@@ -146,6 +166,9 @@ private:
     bool setHostedPluginLayout();
     bool prepareHostedPluginForPlaying();
     void setHostedPluginState();
+    juce::Array<HostedPluginPreset> findPresetsForPlugin(const juce::PluginDescription& pluginDescription) const;
+    juce::StringArray getPresetManufacturerFolderNames(const juce::PluginDescription& pluginDescription) const;
+    juce::StringArray getPresetPluginFolderNames(const juce::PluginDescription& pluginDescription) const;
     template<typename FloatType>
     void processBlockInternal(juce::AudioBuffer<FloatType>& buffer, juce::MidiBuffer& midiMessages, bool setPlayhead);
     //==============================================================================
@@ -158,6 +181,7 @@ private:
     juce::String hostedPluginPath;
     bool hostedPluginHasSidechainInput;
     juce::String hostedPluginName;
+    juce::PluginDescription hostedPluginDescription;
     juce::String targetLayoutDescription;
     juce::MemoryBlock hostedPluginState;
     
@@ -207,6 +231,12 @@ private:
     {
         const juce::ScopedLock sl(innerMutex);
         hostedPluginName = value;
+    }
+
+    void setHostedPluginDescription(juce::PluginDescription value)
+    {
+        const juce::ScopedLock sl(innerMutex);
+        hostedPluginDescription = value;
     }
     
     //==============================================================================

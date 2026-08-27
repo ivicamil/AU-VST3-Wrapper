@@ -147,6 +147,38 @@ juce::String VST3WrapperAudioProcessor::getHostedPluginName()
     return hostedPluginName;
 }
 
+juce::Array<VST3WrapperAudioProcessor::HostedPluginPreset> VST3WrapperAudioProcessor::getHostedPluginPresets()
+{
+    juce::PluginDescription pluginDescription;
+
+    {
+        const juce::ScopedLock sl(innerMutex);
+
+        if (hostedPluginInstance == nullptr)
+            return {};
+
+        pluginDescription = hostedPluginDescription;
+    }
+
+    return findPresetsForPlugin(pluginDescription);
+}
+
+bool VST3WrapperAudioProcessor::loadHostedPluginPreset(const juce::File& presetFile)
+{
+    juce::MemoryBlock presetData;
+
+    if (!presetFile.hasFileExtension("vstpreset") || !presetFile.loadFileAsData(presetData))
+        return false;
+
+    return safelyPerform<bool>([&](auto& p)
+    {
+        if (auto* vst3Client = p->getVST3Client())
+            return vst3Client->setPreset(presetData);
+
+        return false;
+    });
+}
+
 juce::AudioProcessorEditor* VST3WrapperAudioProcessor::createHostedPluginEditorIfNeeded()
 {
     return safelyPerform<juce::AudioProcessorEditor*>([] (auto& p)
@@ -181,6 +213,7 @@ void VST3WrapperAudioProcessor::removePrevioslyHostedPluginIfNeeded(bool unsetEr
     setIsLoading(false);
     setHostedPluginHasSidechainInput(false);
     setHostedPluginName("");
+    setHostedPluginDescription({});
 }
 
 void VST3WrapperAudioProcessor::loadPluginInternal(const juce::String& pluginPath, PluginLoadOperation loadOperation)
@@ -212,6 +245,7 @@ void VST3WrapperAudioProcessor::loadPluginInternal(const juce::String& pluginPat
         setHostedPluginPath(pluginPath);
 
         setHostedPluginName(pluginName);
+        setHostedPluginDescription(desc);
 
         if (!successfullyConfigured)
         {
@@ -346,6 +380,136 @@ bool VST3WrapperAudioProcessor::prepareHostedPluginForPlaying()
     });
     
     return true;
+}
+
+juce::Array<VST3WrapperAudioProcessor::HostedPluginPreset> VST3WrapperAudioProcessor::findPresetsForPlugin(const juce::PluginDescription& pluginDescription) const
+{
+    juce::Array<HostedPluginPreset> presets;
+
+    struct PresetRoot
+    {
+        juce::File directory;
+        HostedPluginPreset::Source source;
+    };
+
+    juce::Array<PresetRoot> presetRoots;
+    presetRoots.add({ juce::File("/Library/Audio/Presets"), HostedPluginPreset::Source::Factory });
+    presetRoots.add({ juce::File::getSpecialLocation(juce::File::userHomeDirectory)
+                          .getChildFile("Library/Audio/Presets"),
+                      HostedPluginPreset::Source::User });
+
+    const auto manufacturerFolderNames = getPresetManufacturerFolderNames(pluginDescription);
+    const auto pluginFolderNames = getPresetPluginFolderNames(pluginDescription);
+    auto normalisePresetFolderName = [](juce::String name)
+    {
+        juce::String normalised;
+
+        for (auto c : name)
+            if (juce::CharacterFunctions::isLetterOrDigit(c))
+                normalised << juce::CharacterFunctions::toLowerCase(c);
+
+        return normalised;
+    };
+
+    juce::StringArray normalisedPluginFolderNames;
+
+    for (const auto& pluginFolderName : pluginFolderNames)
+        normalisedPluginFolderNames.addIfNotAlreadyThere(normalisePresetFolderName(pluginFolderName));
+
+    normalisedPluginFolderNames.removeEmptyStrings();
+
+    for (const auto& root : presetRoots)
+    {
+        juce::Array<juce::File> presetDirectories;
+
+        for (const auto& manufacturerFolderName : manufacturerFolderNames)
+        {
+            const auto manufacturerDirectory = root.directory.getChildFile(manufacturerFolderName);
+
+            if (!manufacturerDirectory.isDirectory())
+                continue;
+
+            for (const auto& pluginFolderName : pluginFolderNames)
+            {
+                const auto presetDirectory = manufacturerDirectory.getChildFile(pluginFolderName);
+
+                if (presetDirectory.isDirectory() && !presetDirectories.contains(presetDirectory))
+                    presetDirectories.add(presetDirectory);
+            }
+
+            for (const auto& entry : juce::RangedDirectoryIterator(manufacturerDirectory,
+                                                                   false,
+                                                                   "*",
+                                                                   juce::File::findDirectories))
+            {
+                const auto presetDirectory = entry.getFile();
+
+                if (normalisedPluginFolderNames.contains(normalisePresetFolderName(presetDirectory.getFileName()))
+                    && !presetDirectories.contains(presetDirectory))
+                {
+                    presetDirectories.add(presetDirectory);
+                }
+            }
+        }
+
+        for (const auto& presetDirectory : presetDirectories)
+        {
+            for (const auto& entry : juce::RangedDirectoryIterator(presetDirectory,
+                                                                   true,
+                                                                   "*.vstpreset",
+                                                                   juce::File::findFiles))
+            {
+                const auto file = entry.getFile();
+                auto relativeFolder = file.getParentDirectory().getFullPathName()
+                                          .fromFirstOccurrenceOf(presetDirectory.getFullPathName(), false, false)
+                                          .trimCharactersAtStart(juce::File::getSeparatorString());
+
+                presets.add({ file.getFileNameWithoutExtension(), file, relativeFolder, root.source });
+            }
+        }
+    }
+
+    struct PresetNameComparator
+    {
+        static int compareElements(const HostedPluginPreset& a, const HostedPluginPreset& b)
+        {
+            if (a.source != b.source)
+                return a.source == HostedPluginPreset::Source::Factory ? -1 : 1;
+
+            const auto folderComparison = a.relativeFolder.compareNatural(b.relativeFolder);
+
+            if (folderComparison != 0)
+                return folderComparison;
+
+            return a.name.compareNatural(b.name);
+        }
+    };
+
+    PresetNameComparator comparator;
+    presets.sort(comparator);
+
+    return presets;
+}
+
+juce::StringArray VST3WrapperAudioProcessor::getPresetManufacturerFolderNames(const juce::PluginDescription& pluginDescription) const
+{
+    juce::StringArray names;
+    names.addIfNotAlreadyThere(pluginDescription.manufacturerName.trim());
+
+    if (pluginDescription.manufacturerName.containsIgnoreCase("steinberg"))
+        names.addIfNotAlreadyThere("Steinberg Media Technologies");
+
+    names.removeEmptyStrings();
+    return names;
+}
+
+juce::StringArray VST3WrapperAudioProcessor::getPresetPluginFolderNames(const juce::PluginDescription& pluginDescription) const
+{
+    juce::StringArray names;
+    names.addIfNotAlreadyThere(pluginDescription.name.trim());
+    names.addIfNotAlreadyThere(pluginDescription.descriptiveName.trim());
+    names.removeEmptyStrings();
+    return names;
 }
 
 void VST3WrapperAudioProcessor::setHostedPluginState()

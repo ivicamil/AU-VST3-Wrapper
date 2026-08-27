@@ -16,6 +16,103 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
+#include <map>
+
+namespace
+{
+    using HostedPluginPreset = VST3WrapperAudioProcessor::HostedPluginPreset;
+    using PresetSource = HostedPluginPreset::Source;
+
+    juce::String normalisePresetMenuPath(juce::String path)
+    {
+        return path.replaceCharacter('\\', '/').trimCharactersAtStart("/").trimCharactersAtEnd("/");
+    }
+
+    bool presetHasSource(const HostedPluginPreset& preset, PresetSource source)
+    {
+        return preset.source == source;
+    }
+
+    bool hasPresetsForSource(const juce::Array<HostedPluginPreset>& presets, PresetSource source)
+    {
+        for (const auto& preset : presets)
+            if (presetHasSource(preset, source))
+                return true;
+
+        return false;
+    }
+
+    juce::String getImmediateChildFolder(const juce::String& presetFolder, const juce::String& currentFolder)
+    {
+        const auto folder = normalisePresetMenuPath(presetFolder);
+        const auto current = normalisePresetMenuPath(currentFolder);
+
+        if (folder.isEmpty() || folder == current)
+            return {};
+
+        if (current.isNotEmpty())
+        {
+            const auto currentPrefix = current + "/";
+
+            if (!folder.startsWith(currentPrefix))
+                return {};
+
+            const auto remainder = folder.substring(currentPrefix.length());
+            return remainder.upToFirstOccurrenceOf("/", false, false);
+        }
+
+        return folder.upToFirstOccurrenceOf("/", false, false);
+    }
+
+    void addPresetsToMenu(juce::PopupMenu& menu,
+                          const juce::Array<HostedPluginPreset>& presets,
+                          PresetSource source,
+                          const juce::String& currentFolder,
+                          int& nextMenuItemId,
+                          std::map<int, HostedPluginPreset>& presetByMenuItemId)
+    {
+        juce::StringArray childFolders;
+
+        for (int i = 0; i < presets.size(); ++i)
+        {
+            const auto& preset = presets.getReference(i);
+
+            if (!presetHasSource(preset, source))
+                continue;
+
+            const auto childFolder = getImmediateChildFolder(preset.relativeFolder, currentFolder);
+
+            if (childFolder.isNotEmpty())
+                childFolders.addIfNotAlreadyThere(childFolder);
+        }
+
+        childFolders.sort(true);
+
+        for (const auto& childFolder : childFolders)
+        {
+            juce::PopupMenu submenu;
+            const auto submenuFolder = normalisePresetMenuPath(currentFolder).isEmpty()
+                                           ? childFolder
+                                           : normalisePresetMenuPath(currentFolder) + "/" + childFolder;
+
+            addPresetsToMenu(submenu, presets, source, submenuFolder, nextMenuItemId, presetByMenuItemId);
+            menu.addSubMenu(childFolder, submenu);
+        }
+
+        for (int i = 0; i < presets.size(); ++i)
+        {
+            const auto& preset = presets.getReference(i);
+
+            if (!presetHasSource(preset, source) || normalisePresetMenuPath(preset.relativeFolder) != normalisePresetMenuPath(currentFolder))
+                continue;
+
+            const auto menuItemId = nextMenuItemId++;
+            presetByMenuItemId[menuItemId] = preset;
+            menu.addItem(menuItemId, preset.name);
+        }
+    }
+}
+
 //==============================================================================
 
 VST3WrapperAudioProcessorEditor::VST3WrapperAudioProcessorEditor (VST3WrapperAudioProcessor& p)
@@ -53,11 +150,15 @@ VST3WrapperAudioProcessorEditor::VST3WrapperAudioProcessorEditor (VST3WrapperAud
         clearSearchButton.setVisible(false);
         resized();
     };
+
+    presetMenuButton.setButtonText("Presets");
+    presetMenuButton.addListener(this);
     
     audioProcessor.addChangeListener(this);
     
     addAndMakeVisible(pluginSearchBox);
     addAndMakeVisible(clearSearchButton);
+    addChildComponent(presetMenuButton);
     addAndMakeVisible(pluginFileBrowser.get());
     pluginFileBrowser->addListener(this);
     // setEnabled(false) doesn't work on FileBrowserComponent,
@@ -230,6 +331,77 @@ void VST3WrapperAudioProcessorEditor::closePlugin()
     processorStateChanged(false);
 }
 
+void VST3WrapperAudioProcessorEditor::updatePresetList()
+{
+    hostedPluginPresets.clear();
+    presetMenuButton.setButtonText("Presets");
+
+    if (audioProcessor.isHostedPluginLoaded())
+        hostedPluginPresets = audioProcessor.getHostedPluginPresets();
+
+    const auto shouldShowPresetMenuButton = hostedPluginPresets.size() > 0;
+    presetMenuButton.setVisible(shouldShowPresetMenuButton);
+    presetMenuButton.setEnabled(shouldShowPresetMenuButton);
+}
+
+void VST3WrapperAudioProcessorEditor::showPresetMenu()
+{
+    if (hostedPluginPresets.isEmpty())
+        return;
+
+    juce::PopupMenu menu;
+    std::map<int, HostedPluginPreset> presetByMenuItemId;
+    auto nextMenuItemId = 1;
+
+    if (hasPresetsForSource(hostedPluginPresets, HostedPluginPreset::Source::Factory))
+    {
+        menu.addSectionHeader("Factory Presets");
+        addPresetsToMenu(menu, hostedPluginPresets, HostedPluginPreset::Source::Factory, {}, nextMenuItemId, presetByMenuItemId);
+    }
+
+    if (hasPresetsForSource(hostedPluginPresets, HostedPluginPreset::Source::User))
+    {
+        if (hasPresetsForSource(hostedPluginPresets, HostedPluginPreset::Source::Factory))
+            menu.addSeparator();
+
+        menu.addSectionHeader("User Presets");
+        addPresetsToMenu(menu, hostedPluginPresets, HostedPluginPreset::Source::User, {}, nextMenuItemId, presetByMenuItemId);
+    }
+
+    juce::Component::SafePointer<VST3WrapperAudioProcessorEditor> editor(this);
+
+    menu.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&presetMenuButton),
+                       [editor, presetByMenuItemId](const int selectedMenuItemId)
+                       {
+                           if (editor == nullptr || selectedMenuItemId == 0)
+                               return;
+
+                           const auto preset = presetByMenuItemId.find(selectedMenuItemId);
+
+                           if (preset == presetByMenuItemId.end())
+                               return;
+
+                           editor->loadPreset(preset->second);
+                       });
+}
+
+void VST3WrapperAudioProcessorEditor::loadPreset(const HostedPluginPreset& preset)
+{
+    if (!preset.file.existsAsFile())
+        return;
+
+    if (!audioProcessor.loadHostedPluginPreset(preset.file))
+    {
+        statusLabel.setColour(juce::Label::textColourId, juce::Colours::red);
+        statusLabel.setText("Could not load preset", juce::dontSendNotification);
+        return;
+    }
+
+    presetMenuButton.setButtonText(preset.name);
+    statusLabel.setColour(juce::Label::textColourId, juce::Colours::white);
+    statusLabel.setText(audioProcessor.getHostedPluginName(), juce::dontSendNotification);
+}
+
 void VST3WrapperAudioProcessorEditor::changeListenerCallback (juce::ChangeBroadcaster* source)
 {
     setHostedPluginEditorIfNeeded();
@@ -267,11 +439,15 @@ void VST3WrapperAudioProcessorEditor::processorStateChanged(const bool shouldSho
 {
     const auto isHostedPluginLoaded = audioProcessor.isHostedPluginLoaded();
     const auto pluginLoadingError = audioProcessor.getHostedPluginLoadingError();
+
+    updatePresetList();
     
     pluginSearchBox.setVisible(!isHostedPluginLoaded);
     pluginSearchBox.setEnabled(!isHostedPluginLoaded);
     clearSearchButton.setVisible(!isHostedPluginLoaded && pluginSearchBox.getText().isNotEmpty());
     clearSearchButton.setEnabled(!isHostedPluginLoaded);
+    presetMenuButton.setVisible(isHostedPluginLoaded && hostedPluginPresets.size() > 0);
+    presetMenuButton.setEnabled(isHostedPluginLoaded && hostedPluginPresets.size() > 0);
     pluginFileBrowser.get()->setVisible(!isHostedPluginLoaded);
     pluginFileBrowserCover.setVisible(false);
     loadPluginButton.setVisible(!isHostedPluginLoaded);
@@ -339,6 +515,10 @@ void VST3WrapperAudioProcessorEditor::buttonClicked(juce::Button* button)
     {
         closePlugin();
     }
+    else if (button == &presetMenuButton)
+    {
+        showPresetMenu();
+    }
 }
 
 void VST3WrapperAudioProcessorEditor::drawSidechainArrow(juce::Graphics& g)
@@ -386,7 +566,7 @@ void VST3WrapperAudioProcessorEditor::resized()
 {
     if (hostedPluginEditor != nullptr)
     {
-        hostedPluginEditor->setTopLeftPosition(0, 0);
+        hostedPluginEditor->setTopLeftPosition(0, getPresetBarHeight());
     }
    
     const auto shouldShowClearSearchButton = clearSearchButton.isVisible();
@@ -397,6 +577,10 @@ void VST3WrapperAudioProcessorEditor::resized()
     clearSearchButton.setBounds(getEditorWidth() - margin - clearSearchButtonWidth, margin, clearSearchButtonWidth, searchBoxHeight);
     pluginFileBrowser->setBounds(0, getFileBrowserOriginY(), getEditorWidth(), getFileBrowserHeight());
     pluginFileBrowserCover.setBounds(0, 0, getEditorWidth(), browserHeight);
+    presetMenuButton.setBounds(margin,
+                               (presetBarHeight - presetButtonHeight) / 2,
+                               getEditorWidth() - 2 * margin,
+                               presetButtonHeight);
     loadPluginButton.setBounds(margin, getButtonOriginY(), getBounds().getWidth() - 2 * margin, buttonHeight);
     closePluginButton.setBounds(margin, getButtonOriginY(), getBounds().getWidth() - 2 * margin, buttonHeight);
     statusLabel.setBounds(margin, getLabelriginY(), getBounds().getWidth() - 2 * margin, labelHeight);
